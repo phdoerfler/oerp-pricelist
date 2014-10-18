@@ -172,7 +172,9 @@ def TR(x, options=""):
     return out
 
 def makePricelistHtml(baseCategory):
-    categories=getCategoryWithDescendants(categoryIdFromName(baseCategory))
+    if type(baseCategory) != int:
+        baseCategory=categoryIdFromName(baseCategory)
+    categories=getCategoryWithDescendants(baseCategory)
     print categories
     data = importProdukteOERP({}, [('categ_id', 'in', categories)])
     out = u""
@@ -204,10 +206,12 @@ def main():
     data = {}
     
     print data
-    for cat in ["CNC", "Alle Produkte"]:
+    for cat in ["CNC", 228, "Alle Produkte"]:
         print cat
         pricelist=makePricelistHtml(cat)
-        filename="output/pricelist-{}.html".format(re.sub(r'[^a-zA-Z]', '_', cat))
+        if type(cat)==int:
+            cat=str(cat)
+        filename="output/pricelist-{}.html".format(re.sub(r'[^0-9a-zA-Z]', '_', cat))
         f=open(filename, "w")
         f.write(pricelist)
         f.close()
