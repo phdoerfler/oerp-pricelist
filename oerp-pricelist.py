@@ -20,8 +20,11 @@ import locale
 from ConfigParser import ConfigParser
 import codecs
 import cgi
-# sudo pip install functools32 # for caching functionality not present in python2 functools
+import time
+# sudo pip install functools32 natsort # for caching functionality not present in python2 functools
 from functools32 import lru_cache
+import natsort
+
 
 # switching to german:
 locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
@@ -63,6 +66,9 @@ def categ_id_to_list_of_names(c_id):
         return categ_id_to_list_of_names(categ['parent_id'][0])+[categ['name']]
         
 
+class NotFound(Exception):
+    pass
+
 def getId(db, filter):
     ids=getIds(db, filter)
     if not ids:
@@ -74,6 +80,7 @@ def getIds(db, filter):
     return oerp.search(db, filter, context=oerpContext)
 
 def read(db, id, fields=[]):
+    assert type(id)=="int",  "read is only for one element. see also: readElements() for reading multiple elements with a filter"
     readResult=oerp.read(db, [id], fields, context=oerpContext)
     if len(readResult)!=1:
         raise NotFound()
@@ -125,12 +132,29 @@ def getCategoryDescendants(id):
         descendants += getCategoryDescendants(x)
     return descendants
 
+@lru_cache()
+def getSupplierInfos():
+    return readElements('product.supplierinfo', [])
+    
+def getSupplierInfoFromProduct(id):
+    # TODO only shows first supplier
+    for i in getSupplierInfos():
+        if i['product_id'][0] == id:
+            return i
+    raise NotFound()
+
 def importProdukteOERP(data, extra_filters=[]):
     print "OERP Import"
     prod_ids = oerp.search('product.product', [('default_code', '!=', False)]+extra_filters)
     print "reading {} products from OERP, this may take some minutes...".format(len(prod_ids))
-    prods = oerp.read('product.product', prod_ids, ['code', 'name', 'uom_id', 'list_price', 'categ_id', 'active', 'sale_ok'],
-        context=oerp.context)
+    prods = []
+    def SplitList(list, chunk_size):
+        return [list[offs:offs+chunk_size] for offs in range(0, len(list), chunk_size)]
+    # read max. 100 products at once
+    for prod_ids_slice in SplitList(prod_ids, 100):
+        print "."
+        prods += oerp.read('product.product', prod_ids_slice, [],
+            context=oerp.context)
     
     # Only consider things with numerical PLUs in code field
     prods = filter(lambda p: str_to_int(p['code']) is not None, prods)
@@ -156,8 +180,24 @@ def importProdukteOERP(data, extra_filters=[]):
         if p['uom_id'][0] in integer_uoms:
             p['input_mode'] = 'INTEGER'
         p['uom']=p['uom_id'][1]
+        
+        # supplier and manufacturer info:
+        p['supplier_all_infos']=''
+        try:
+            p['supplierinfo']=getSupplierInfoFromProduct(p['id'])
+            if p['supplierinfo']['name']:
+                p['supplier_name']=p['supplierinfo']['name'][1]
+                p['supplier_code']=p['supplierinfo']['product_code'] or ''
+                p['supplier_name_code']=p['supplier_name'] + ": " + p['supplier_code']
+                p['supplier_all_infos'] += p['supplier_name_code']
+        except NotFound:
+            pass
+        if p['manufacturer']:
+            p['supplier_all_infos'] += ", Hersteller: {} ({}) {}" \
+                                        .format(p['manufacturer'][1], 
+                                                p['manufacturer_pref'] or '', 
+                                                p['manufacturer_pname'] or '')
     
-        # TODO p['supplier']=
         data[p['code']]=p
     return data
 
@@ -165,13 +205,13 @@ def htmlescape(x):
     return cgi.escape(x).encode('ascii', 'xmlcharrefreplace')
 
 def TR(x, options=""):
-    out=u"<tr {}>".format(options)
+    out=u"<tr {}>".format( options)
     for v in x:
         out+=u"<td>{}</td>".format(htmlescape(v))
     out+=u"</tr>"
     return out
 
-def makePricelistHtml(baseCategory):
+def makePricelistHtml(baseCategory, columns, columnNames):
     if type(baseCategory) != int:
         baseCategory=categoryIdFromName(baseCategory)
     categories=getCategoryWithDescendants(baseCategory)
@@ -181,20 +221,27 @@ def makePricelistHtml(baseCategory):
     out += '<html><head><title>Preisliste</title>'
     out += '<style type="text/css">'
     out += "tr.newCateg{font-weight:bold;}"
+    out += "tr.head{font-weight:bold;}"
     out += "tr.newCateg td {padding-top:1em;}"
     out += 'tr:nth-child(even) {background-color: #ededed;}'
     out += '</style>'
     out += '</head><body>'
+    out += "Diese Liste wurde automatisch erzeugt am "
+    out += time.strftime("%x %X",time.localtime())
+    out += ". Fehler sind nicht ausgeschlossen."
     out += "<table>"
+    def makeHeader(x):
+        return columnNames.get(x, x)
+    out += TR([makeHeader(x) for x in columns], 'class="head"')
     productlist=data.values()
-    productlist.sort(key=lambda x: [x['categ'], x['name']]) # TODO natural sort order
+    productlist=natsort.natsorted(productlist, key=lambda x: [x['categ'], x['name']])
     currentCategory=None
     for p in productlist:
         if p['categ'] != currentCategory:
             currentCategory=p['categ']
             out += u'<tr class="newCateg"><td colspan="4">{}</td></tr>'.format(htmlescape(p["categ_str"]))
         row=[]
-        for w in ["code", "name", "price", "uom", "supplier"]:
+        for w in columns:
             value=str(p.get(w, ""))
             row.append(value)
         out += TR(row)
@@ -206,9 +253,18 @@ def main():
     data = {}
     
     print data
-    for cat in ["CNC", 228, "Alle Produkte"]:
+    columnNames={"code":"Nr.", "name":"Bezeichnung", "price":"Preis", "uom":"Einheit", "supplier_name_code":"Lieferant", "supplier_all_infos":"Lieferant / Hersteller", 
+                 "x_durchmesser":"D", "x_stirnseitig":"eintauchen?", "x_fraeserwerkstoff":"aus Material", "x_fuerwerkstoff":"für Material"}
+    defaultCols=["code", "name", "price", "uom", "supplier_all_infos"]
+    jobs= [ # ("Fräser", defaultCols+["x_durchmesser", "x_stirnseitig", "x_fraeserwerkstoff", "x_fuerwerkstoff"]), 
+            ("CNC", defaultCols),
+            (228, defaultCols), # Fräsenmaterial
+            ("Schneideplotter", defaultCols), 
+            ("Alle Produkte", defaultCols)
+          ]
+    for (cat, columns) in jobs:
         print cat
-        pricelist=makePricelistHtml(cat)
+        pricelist=makePricelistHtml(cat, columns, columnNames)
         if type(cat)==int:
             cat=str(cat)
         filename="output/pricelist-{}.html".format(re.sub(r'[^0-9a-zA-Z]', '_', cat))
