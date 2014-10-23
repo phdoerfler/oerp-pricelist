@@ -217,36 +217,32 @@ def makePricelistHtml(baseCategory, columns, columnNames):
     categories=getCategoryWithDescendants(baseCategory)
     print categories
     data = importProdukteOERP({}, [('categ_id', 'in', categories)])
+    
+    filename="sheme.html"
+    f=open(filename, "r")
     out = u""
-    out += '<html><head><title>Preisliste</title>'
-    out += '<style type="text/css">'
-    out += "tr.newCateg{font-weight:bold;}"
-    out += "tr.head{font-weight:bold;}"
-    out += "tr.newCateg td {padding-top:1em;}"
-    out += 'tr:nth-child(even) {background-color: #ededed;}'
-    out += '</style>'
-    out += '</head><body>'
-    out += "Diese Liste wurde automatisch erzeugt am "
-    out += time.strftime("%x %X",time.localtime())
-    out += ". Fehler sind nicht ausgeschlossen."
-    out += "<table>"
+    out = f.read()
+    f.close()
+
     def makeHeader(x):
         return columnNames.get(x, x)
-    out += TR([makeHeader(x) for x in columns], 'class="head"')
+    contenttable = TR([makeHeader(x) for x in columns], 'class="head"')
     productlist=data.values()
     productlist=natsort.natsorted(productlist, key=lambda x: [x['categ'], x['name']])
     currentCategory=None
     for p in productlist:
         if p['categ'] != currentCategory:
             currentCategory=p['categ']
-            out += u'<tr class="newCateg"><td colspan="4">{}</td></tr>'.format(htmlescape(p["categ_str"]))
+            contenttable += u'<tr class="newCateg">\n<td colspan="5">{}</td>\n</tr>\n'.format(htmlescape(p["categ_str"]))
         row=[]
         for w in columns:
             value=str(p.get(w, ""))
             row.append(value)
-        out += TR(row)
-    out += "</table>"
-    out += "</body></html>"
+        contenttable += TR(row)
+
+    out = out.replace("$CATEGORY", str(baseCategory))
+    out = out.replace("$REFRESHDATE", time.strftime("%x %X",time.localtime()))
+    out = out.replace("$CONTENTTABLE", contenttable)
     return out
 
 def main():    
@@ -257,10 +253,10 @@ def main():
                  "x_durchmesser":"D", "x_stirnseitig":"eintauchen?", "x_fraeserwerkstoff":"aus Material", "x_fuerwerkstoff":"für Material"}
     defaultCols=["code", "name", "price", "uom", "supplier_all_infos"]
     jobs= [ # ("Fräser", defaultCols+["x_durchmesser", "x_stirnseitig", "x_fraeserwerkstoff", "x_fuerwerkstoff"]), 
-            ("CNC", defaultCols),
+            #("CNC", defaultCols),
             (228, defaultCols), # Fräsenmaterial
-            ("Schneideplotter", defaultCols), 
-            ("Alle Produkte", defaultCols)
+            #("Schneideplotter", defaultCols), 
+            #("Alle Produkte", defaultCols)
           ]
     for (cat, columns) in jobs:
         print cat
