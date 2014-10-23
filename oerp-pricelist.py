@@ -253,10 +253,10 @@ def main():
                  "x_durchmesser":"D", "x_stirnseitig":"eintauchen?", "x_fraeserwerkstoff":"aus Material", "x_fuerwerkstoff":"für Material"}
     defaultCols=["code", "name", "price", "uom", "supplier_all_infos"]
     jobs= [ # ("Fräser", defaultCols+["x_durchmesser", "x_stirnseitig", "x_fraeserwerkstoff", "x_fuerwerkstoff"]), 
-            #("CNC", defaultCols),
+            ("CNC", defaultCols),
             (228, defaultCols), # Fräsenmaterial
-            #("Schneideplotter", defaultCols), 
-            #("Alle Produkte", defaultCols)
+            ("Schneideplotter", defaultCols), 
+            ("Alle Produkte", defaultCols)
           ]
     for (cat, columns) in jobs:
         print cat
