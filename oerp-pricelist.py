@@ -80,7 +80,7 @@ def getIds(db, filter):
     return oerp.search(db, filter, context=oerpContext)
 
 def read(db, id, fields=[]):
-    assert type(id)=="int",  "read is only for one element. see also: readElements() for reading multiple elements with a filter"
+    assert type(id)==int,  "read is only for one element. see also: readElements() for reading multiple elements with a filter"
     readResult=oerp.read(db, [id], fields, context=oerpContext)
     if len(readResult)!=1:
         raise NotFound()
@@ -260,6 +260,7 @@ def main():
             ("CNC", defaultCols),
             (228, defaultCols), # Fräsenmaterial
             ("Schneideplotter", defaultCols), 
+            ("Platinenfertigung", defaultCols), 
             ("Alle Produkte", defaultCols)
           ]
     for (cat, columns) in jobs:
