@@ -136,24 +136,35 @@ def getCategoryDescendants(id):
 def getSupplierInfos():
     return readElements('product.supplierinfo', [])
     
-def getSupplierInfoFromProduct(id):
+def getSupplierInfoFromProduct(p):
+    # input: product data dict
     # TODO only shows first supplier
+    if len(p['seller_ids']) == 0:
+        raise NotFound
     for i in getSupplierInfos():
-        if i['product_id'][0] == id:
+        if i['id'] == p['seller_ids'][0]:
             return i
     raise NotFound()
 
-def importProdukteOERP(data, extra_filters=[]):
+def importProdukteOERP(data, extra_filters=[], columns=[]):
+    # TODO code vs default_code -> what's the difference?
+    columns=deepcopy(columns)
+    if columns != []:
+        columns += ["code", "default_code", "list_price", "active", "sale_ok", "categ_id", "uom_id",  "manufacturer", "manufacturer_pname", "manufacturer_pref", "seller_ids"]
     print "OERP Import"
     prod_ids = oerp.search('product.product', [('default_code', '!=', False)]+extra_filters)
     print "reading {} products from OERP, this may take some minutes...".format(len(prod_ids))
     prods = []
     def SplitList(list, chunk_size):
         return [list[offs:offs+chunk_size] for offs in range(0, len(list), chunk_size)]
-    # read max. 100 products at once
-    for prod_ids_slice in SplitList(prod_ids, 100):
+    
+    # columns starting with _ are generated in this script and not from the DB
+    queryColumns = [col for col in columns if not col.startswith("_")]
+    # read max. N products at once
+    N=45
+    for prod_ids_slice in SplitList(prod_ids, N):
         print "."
-        prods += oerp.read('product.product', prod_ids_slice, [],
+        prods += oerp.read('product.product', prod_ids_slice, queryColumns,
             context=oerp.context)
     
     # Only consider things with numerical PLUs in code field
@@ -175,25 +186,25 @@ def importProdukteOERP(data, extra_filters=[]):
         priceStr='{:.3f}'.format(p['list_price'])
         if priceStr[-1]=="0": # third digit only if nonzero
             priceStr=priceStr[:-1]
-        p['price']=u'{} €'.format(priceStr)
+        p['_price']=u'{} €'.format(priceStr)
         p['input_mode']='DECIMAL'
         if p['uom_id'][0] in integer_uoms:
             p['input_mode'] = 'INTEGER'
         p['uom']=p['uom_id'][1]
         
         # supplier and manufacturer info:
-        p['supplier_all_infos']=''
+        p['_supplier_all_infos']=''
         try:
-            p['supplierinfo']=getSupplierInfoFromProduct(p['id'])
-            if p['supplierinfo']['name']:
-                p['supplier_name']=p['supplierinfo']['name'][1]
-                p['supplier_code']=p['supplierinfo']['product_code'] or ''
-                p['supplier_name_code']=p['supplier_name'] + ": " + p['supplier_code']
-                p['supplier_all_infos'] += p['supplier_name_code']
+            p['_supplierinfo']=getSupplierInfoFromProduct(p)
+            if p['_supplierinfo']['name']:
+                p['_supplier_name']=p['_supplierinfo']['name'][1]
+                p['_supplier_code']=p['_supplierinfo']['product_code'] or ''
+                p['_supplier_name_code']=p['_supplier_name'] + ": " + p['_supplier_code']
+                p['_supplier_all_infos'] += p['_supplier_name_code']
         except NotFound:
             pass
         if p['manufacturer']:
-            p['supplier_all_infos'] += ", Hersteller: {} ({}) {}" \
+            p['_supplier_all_infos'] += ", Hersteller: {} ({}) {}" \
                                         .format(p['manufacturer'][1], 
                                                 p['manufacturer_pref'] or '', 
                                                 p['manufacturer_pname'] or '')
@@ -216,7 +227,7 @@ def makePricelistHtml(baseCategory, columns, columnNames):
         baseCategory=categoryIdFromName(baseCategory)
     categories=getCategoryWithDescendants(baseCategory)
     print categories
-    data = importProdukteOERP({}, [('categ_id', 'in', categories)])
+    data = importProdukteOERP({}, [('categ_id', 'in', categories)], columns)
     
     filename="sheme.html"
     f=open(filename, "r")
@@ -240,7 +251,7 @@ def makePricelistHtml(baseCategory, columns, columnNames):
             row.append(value)
         contenttable += TR(row)
 
-    out = out.replace("$CATEGORY", str(baseCategory))
+    out = out.replace("$CATEGORY", " / ".join(categ_id_to_list_of_names(baseCategory)) )
     out = out.replace("$REFRESHDATE", time.strftime("%x %X",time.localtime()))
     out = out.replace("$CONTENTTABLE", contenttable)
     return out
@@ -249,9 +260,9 @@ def main():
     data = {}
     
     print data
-    columnNames={"code":"Nr.", "name":"Bezeichnung", "price":"Preis", "uom":"Einheit", "supplier_name_code":"Lieferant", "supplier_all_infos":"Lieferant / Hersteller", 
+    columnNames={"code":"Nr.", "name":"Bezeichnung", "_price":"Preis", "uom":"Einheit", "_supplier_name_code":"Lieferant", "_supplier_all_infos":"Lieferant / Hersteller", 
                  "x_durchmesser":"D", "x_stirnseitig":"eintauchen?", "x_fraeserwerkstoff":"aus Material", "x_fuerwerkstoff":"für Material"}
-    defaultCols=["code", "name", "price", "uom", "supplier_all_infos"]
+    defaultCols=["code", "name", "_price", "uom", "_supplier_all_infos"]
     jobs= [ # ("Fräser", defaultCols+["x_durchmesser", "x_stirnseitig", "x_fraeserwerkstoff", "x_fuerwerkstoff"]), 
             ("CNC", defaultCols),
             (228, defaultCols), # Fräsenmaterial
