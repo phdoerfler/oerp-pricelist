@@ -166,6 +166,7 @@ def importProdukteOERP(data, extra_filters=[], columns=[]):
         print "."
         prods += oerp.read('product.product', prod_ids_slice, queryColumns,
             context=oerp.context)
+        time.sleep(2)
     
     # Only consider things with numerical PLUs in code field
     prods = filter(lambda p: str_to_int(p['code']) is not None, prods)
@@ -222,6 +223,17 @@ def TR(x, options=""):
     out+=u"</tr>"
     return out
 
+# fill the template file with data
+def makeHtmlFromTemplate(heading, content):
+    filename="template.html"
+    f=open(filename, "r")
+    out = f.read()
+    f.close()
+    out = out.replace("$HEADING",  heading)
+    out = out.replace("$REFRESHDATE", time.strftime("%x %X",time.localtime()))
+    out = out.replace("$CONTENTTABLE", content)
+    return out
+
 def makePricelistHtml(baseCategory, columns, columnNames):
     if type(baseCategory) != int:
         baseCategory=categoryIdFromName(baseCategory)
@@ -229,11 +241,6 @@ def makePricelistHtml(baseCategory, columns, columnNames):
     print categories
     data = importProdukteOERP({}, [('categ_id', 'in', categories)], columns)
     
-    filename="sheme.html"
-    f=open(filename, "r")
-    out = u""
-    out = f.read()
-    f.close()
 
     def makeHeader(x):
         return columnNames.get(x, x)
@@ -251,10 +258,9 @@ def makePricelistHtml(baseCategory, columns, columnNames):
             row.append(value)
         contenttable += TR(row)
 
-    out = out.replace("$CATEGORY", " / ".join(categ_id_to_list_of_names(baseCategory)) )
-    out = out.replace("$REFRESHDATE", time.strftime("%x %X",time.localtime()))
-    out = out.replace("$CONTENTTABLE", contenttable)
-    return out
+    heading="Preisliste " + " / ".join(categ_id_to_list_of_names(baseCategory))
+    out=makeHtmlFromTemplate(heading, contenttable)
+    return (heading, out)
 
 def main():    
     data = {}
@@ -266,19 +272,32 @@ def main():
     jobs= [ # ("Fräser", defaultCols+["x_durchmesser", "x_stirnseitig", "x_fraeserwerkstoff", "x_fuerwerkstoff"]), 
             ("CNC", defaultCols),
             (228, defaultCols), # Fräsenmaterial
+            ("Laser", defaultCols), 
             ("Schneideplotter", defaultCols), 
             ("Platinenfertigung", defaultCols), 
             ("Alle Produkte", defaultCols)
           ]
+    
+    filelist=[]
     for (cat, columns) in jobs:
         print cat
-        pricelist=makePricelistHtml(cat, columns, columnNames)
+        (title, pricelist)=makePricelistHtml(cat, columns, columnNames)
         if type(cat)==int:
             cat=str(cat)
-        filename="output/pricelist-{}.html".format(re.sub(r'[^0-9a-zA-Z]', '_', cat))
-        f=open(filename, "w")
+        filename="pricelist-{}.html".format(re.sub(r'[^0-9a-zA-Z]', '_', cat))
+        f=open("output/"+filename, "w")
         f.write(pricelist)
+        filelist.append((filename, title))
         f.close()
+    
+    f=open("output/index.html", "w")
+    list="<ul>"
+    for (filename, title) in filelist:
+        list += '<li><a href="{}">{}</a></li>'.format(filename, htmlescape(title))
+    list += "</ul>"
+    list=makeHtmlFromTemplate("Übersicht aller Preislisten", list)
+    f.write(list)
+    f.close()
 
 if __name__ == '__main__':
     main()
