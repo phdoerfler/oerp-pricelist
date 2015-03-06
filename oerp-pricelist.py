@@ -208,7 +208,7 @@ def import_products_oerp(data, extra_filters=None, columns=None):
             continue
         if not p['active'] or not p['sale_ok']:
             continue
-        p['code'] = int(p['code'])
+        p['code'] = "{:04d}".format(int(p['code']))
         p['categ'] = categ_id_to_list_of_names(p['categ_id'][0])
         p['categ_str'] = " / ".join(p['categ'])
         price_str = '{:.3f}'.format(p['list_price'])
