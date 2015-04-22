@@ -178,7 +178,7 @@ def import_products_oerp(data, extra_filters=None, columns=None):
         extra_filters = []
     columns = deepcopy(columns)
     if columns:
-        columns += ["code", "default_code", "list_price", "active", "sale_ok", "categ_id", "uom_id", "manufacturer",
+        columns += ["name", "description", "code", "default_code", "list_price", "active", "sale_ok", "categ_id", "uom_id", "manufacturer",
                     "manufacturer_pname", "manufacturer_pref", "seller_ids"]
     print "OERP Import"
     prod_ids = oerp.search('product.product', [('default_code', '!=', False)] + extra_filters)
@@ -222,7 +222,11 @@ def import_products_oerp(data, extra_filters=None, columns=None):
         if p['uom_id'][0] in integer_uoms:
             p['input_mode'] = 'INTEGER'
         p['uom'] = p['uom_id'][1]
-
+        
+        p['_name_and_description'] = p['name']
+        if p['description']:
+            p['_name_and_description'] += '\n' + p['description']
+        
         # supplier and manufacturer info:
         p['_supplier_all_infos'] = ''
         try:
@@ -245,7 +249,7 @@ def import_products_oerp(data, extra_filters=None, columns=None):
 
 
 def html_escape(x):
-    return cgi.escape(x).encode('ascii', 'xmlcharrefreplace')
+    return cgi.escape(x).encode('ascii', 'xmlcharrefreplace').replace("\n", "<br/>")
 
 
 def tr(x, options=""):
@@ -300,13 +304,12 @@ def make_price_list_html(base_category, columns, column_names):
 
 def main():
     data = {}
-
     print data
-    column_names = {"code": "Nr.", "name": "Bezeichnung", "_price": "Preis", "uom": "Einheit",
+    column_names = {"code": "Nr.", "_name_and_description": "Bezeichnung", "_price": "Preis", "uom": "Einheit",
                     "_supplier_name_code": "Lieferant", "_supplier_all_infos": "Lieferant / Hersteller",
                     "x_durchmesser": "D", "x_stirnseitig": "eintauchen?", "x_fraeserwerkstoff": "aus Material",
                     "x_fuerwerkstoff": "für Material"}
-    default_cols = ["code", "name", "_price", "uom", "_supplier_all_infos"]
+    default_cols = ["code", "_name_and_description", "_price", "uom", "_supplier_all_infos"]
     jobs = [  # ("Fräser", default_cols+["x_durchmesser", "x_stirnseitig", "x_fraeserwerkstoff", "x_fuerwerkstoff"]),
               ("CNC", default_cols),
               (228, default_cols),  # Fräsenmaterial
