@@ -21,8 +21,9 @@ from ConfigParser import ConfigParser
 import codecs
 import cgi
 import time
-# sudo pip install functools32 natsort # for caching functionality not present in python2 functools
-from functools32 import lru_cache
+from repoze.lru import lru_cache
+LRU_CACHE_MAX_ENTRIES=327678
+
 import natsort
 
 
@@ -54,7 +55,7 @@ def str_to_int(s, fallback=None):
 
 
 
-@lru_cache()
+@lru_cache(LRU_CACHE_MAX_ENTRIES)
 def categ_id_to_list_of_names(c_id):
     # TODO make this faster by once fetching the list of all categories
     categ = getCategory(c_id)
@@ -109,7 +110,7 @@ def categoryIdFromName(name):
 def getCategoryWithDescendants(id):
     return [id] + getCategoryDescendants(id)
 
-@lru_cache()
+@lru_cache(LRU_CACHE_MAX_ENTRIES)
 def getCategories():
     return readElements('product.category', [], ['parent_id', 'name'])
 
@@ -132,7 +133,7 @@ def getCategoryDescendants(id):
         descendants += getCategoryDescendants(x)
     return descendants
 
-@lru_cache()
+@lru_cache(LRU_CACHE_MAX_ENTRIES)
 def getSupplierInfos():
     return readElements('product.supplierinfo', [])
     
