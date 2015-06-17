@@ -6,14 +6,6 @@
 
 # Dependencies
 
-# from lxml import etree
-# import StringIO
-# import math
-# import urllib2
-# from decimal import Decimal
-# from pprint import pprint
-# import os
-# import inspect
 from copy import deepcopy
 import sys
 import re
@@ -130,19 +122,19 @@ def get_category_with_descendants(prod_id):
 
 @lru_cache(LRU_CACHE_MAX_ENTRIES)
 def get_categories():
-    return read_elements('product.category', [], ['parent_id', 'name'])
+    return read_elements('product.category', [], ['parent_id', 'name', 'property_stock_location'])
 
-def get_category(prod_id):
+def get_category(cat_id):
     for c in get_categories():
-        if c['id'] == prod_id:
+        if c['id'] == cat_id:
             return c
     raise NotFound()
 
 
-def get_category_children(prod_id):
+def get_category_children(cat_id):
     # IDs of all direct child categories
     for c in get_categories():
-        if c['parent_id'] and c['parent_id'][0] == prod_id:
+        if c['parent_id'] and c['parent_id'][0] == cat_id:
             yield c['id']
 
 
@@ -169,6 +161,76 @@ def get_supplier_info_from_product(p):
             return i
     raise NotFound()
 
+def get_location_str_from_product(p):
+    location = p['property_stock_location']
+    if not location:
+        # no location given for product
+        # fall back to category's location like OERP storage module does
+        c = get_category(p['categ_id'][0])
+        location = c['property_stock_location']
+    if location:
+        location_id = location[0]        
+        location_string = location[1]
+        location = oerp.read('stock.location', location_id) # TODO cache
+        if location['code']:
+            location_string += u" ({})".format(location['code'])
+
+        for removePrefix in [u"tats\xe4chliche Lagerorte  / FAU FabLab / ", u"tats\xe4chliche Lagerorte  / "]:
+            if location_string.startswith(removePrefix):
+                location_string = location_string[len(removePrefix):]
+    else:
+        # no location set at all
+        location_string = "kein Ort eingetragen"
+    return location_string
+
+
+def _parse_product(p):
+    """takes a product from oerp as a dictionary, re-formats values and adds calculated ones"""
+    
+    # product code (article number, PLU)
+    p['_code_str'] = "{:04d}".format(int(p['code']))
+    # category as list ["A","B","foo"]
+    p['_categ_list'] = categ_id_to_list_of_names(p['categ_id'][0])
+    # _categ_str: category as one string "A / B / foo"
+    p['_categ_str'] = " / ".join(p['_categ_list'])
+    
+    # _price_str: list price as string
+    price_str = '{:.3f}'.format(p['list_price'])
+    if price_str[-1] == "0":  # third digit only if nonzero
+        price_str = price_str[:-1]
+    p['_price_str'] = u'{} €'.format(price_str)
+    if p['list_price'] == 0:
+        p['_price_str'] = u"gegen Spende"
+    if not p['sale_ok']:
+        p['_price_str'] = u"unverkäuflich"
+    
+    p['_name_and_description'] = p['name']
+    if p['description']:
+        p['_name_and_description'] += '\n' + p['description']
+    
+    # _supplier_all_infos; supplier and manufacturer info
+    p['_supplier_all_infos'] = ''
+    try:
+        p['_supplierinfo'] = get_supplier_info_from_product(p)
+        if p['_supplierinfo']['name']:
+            p['_supplier_name'] = p['_supplierinfo']['name'][1]
+            p['_supplier_code'] = p['_supplierinfo']['product_code'] or ''
+            p['_supplier_name_code'] = p['_supplier_name'] + ": " + p['_supplier_code']
+            p['_supplier_all_infos'] += p['_supplier_name_code']
+    except NotFound:
+        pass
+
+    if p['manufacturer']:
+        p['_supplier_all_infos'] += ", Hersteller: {} ".format(p['manufacturer'][1])
+        if p['manufacturer_pref']:
+            p['_supplier_all_infos'] += "({}) ".format(p['manufacturer_pref'])
+        p['_supplier_all_infos'] += p['manufacturer_pname'] or ''
+
+    p['_uom_str'] = p['uom_id'][1]
+    p['uom_id'] = p['uom_id'][0]
+    
+    p['_location_str'] = get_location_str_from_product(p)    
+    return p
 
 def import_products_oerp(data, extra_filters=None, columns=None):
     # TODO code vs default_code -> what's the difference?
@@ -179,7 +241,7 @@ def import_products_oerp(data, extra_filters=None, columns=None):
     columns = deepcopy(columns)
     if columns:
         columns += ["name", "description", "code", "default_code", "list_price", "active", "sale_ok", "categ_id", "uom_id", "manufacturer",
-                    "manufacturer_pname", "manufacturer_pref", "seller_ids"]
+                    "manufacturer_pname", "manufacturer_pref", "seller_ids", 'property_stock_location']
     print "OERP Import"
     prod_ids = oerp.search('product.product', [('default_code', '!=', False)] + extra_filters)
     print "reading {} products from OERP, this may take some minutes...".format(len(prod_ids))
@@ -191,7 +253,7 @@ def import_products_oerp(data, extra_filters=None, columns=None):
     # columns starting with _ are generated in this script and not from the DB
     query_columns = [col for col in columns if not col.startswith("_")]
     # read max. n products at once
-    n = 45
+    n = 100
     for prod_ids_slice in split_list(prod_ids, n):
         print "."
         prods += oerp.read('product.product', prod_ids_slice, query_columns,
@@ -201,49 +263,11 @@ def import_products_oerp(data, extra_filters=None, columns=None):
     # Only consider things with numerical PLUs in code field
     prods = filter(lambda p: str_to_int(p['code']) is not None, prods)
 
-    # which units are only possible in integer amounts? (e.g. pieces, pages of paper)
-    integer_uoms = oerp.search('product.uom', [('rounding', '=', 1)])
 
     for p in prods:
-        # print p['code']
-        if p['list_price'] == 0:
-            # WORKAROUND: solange die Datenqualität so schlecht ist, werden Artikel mit Preis 0 erstmal ignoriert.
-            continue
         if not p['active'] or not p['sale_ok']:
             continue
-        p['code'] = "{:04d}".format(int(p['code']))
-        p['categ'] = categ_id_to_list_of_names(p['categ_id'][0])
-        p['categ_str'] = " / ".join(p['categ'])
-        price_str = '{:.3f}'.format(p['list_price'])
-        if price_str[-1] == "0":  # third digit only if nonzero
-            price_str = price_str[:-1]
-        p['_price'] = u'{} €'.format(price_str)
-        p['input_mode'] = 'DECIMAL'
-        if p['uom_id'][0] in integer_uoms:
-            p['input_mode'] = 'INTEGER'
-        p['uom'] = p['uom_id'][1]
-        
-        p['_name_and_description'] = p['name']
-        if p['description']:
-            p['_name_and_description'] += '\n' + p['description']
-        
-        # supplier and manufacturer info:
-        p['_supplier_all_infos'] = ''
-        try:
-            p['_supplierinfo'] = get_supplier_info_from_product(p)
-            if p['_supplierinfo']['name']:
-                p['_supplier_name'] = p['_supplierinfo']['name'][1]
-                p['_supplier_code'] = p['_supplierinfo']['product_code'] or ''
-                p['_supplier_name_code'] = p['_supplier_name'] + ": " + p['_supplier_code']
-                p['_supplier_all_infos'] += p['_supplier_name_code']
-        except NotFound:
-            pass
-        if p['manufacturer']:
-            p['_supplier_all_infos'] += ", Hersteller: {} ({}) {}" \
-                .format(p['manufacturer'][1],
-                        p['manufacturer_pref'] or '',
-                        p['manufacturer_pname'] or '')
-
+        p = _parse_product(p)
         data[p['code']] = p
     return data
 
@@ -284,13 +308,14 @@ def make_price_list_html(base_category, columns, column_names):
 
     content_table = tr([make_header(x) for x in columns], 'class="head"')
     product_list = data.values()
-    product_list = natsort.natsorted(product_list, key=lambda x: [x['categ'], x['name']])
+    product_list = natsort.natsorted(product_list, key=lambda x: [x['_categ_str'], x['name']])
     current_category = None
     for p in product_list:
-        if p['categ'] != current_category:
-            current_category = p['categ']
-            content_table += u'<tr class="newCateg">\n<td colspan="5">{}</td>\n</tr>\n'.format(
-                html_escape(p["categ_str"]))
+        if p['_categ_str'] != current_category:
+            current_category = p['_categ_str']
+            content_table += u'<tr class="newCateg">\n<td colspan="{}">{}</td>\n</tr>\n'.format(
+                len(columns),
+                html_escape(p["_categ_str"]))
         row = []
         for w in columns:
             value = str(p.get(w, ""))
@@ -303,13 +328,10 @@ def make_price_list_html(base_category, columns, column_names):
 
 
 def main():
-    data = {}
-    print data
-    column_names = {"code": "Nr.", "_name_and_description": "Bezeichnung", "_price": "Preis", "uom": "Einheit",
-                    "_supplier_name_code": "Lieferant", "_supplier_all_infos": "Lieferant / Hersteller",
-                    "x_durchmesser": "D", "x_stirnseitig": "eintauchen?", "x_fraeserwerkstoff": "aus Material",
-                    "x_fuerwerkstoff": "für Material"}
-    default_cols = ["code", "_name_and_description", "_price", "uom", "_supplier_all_infos"]
+    column_names = {"_code_str": "Nr.", "_name_and_description": "Bezeichnung", "_price_str": "Preis", "_uom_str": "Einheit",
+                    "_supplier_name_code": "Lieferant", "_supplier_all_infos": "Lieferant / Hersteller", "_location_str": "Ort"}
+    # examples for custom columns, added via an attribute set in ERP: "x_durchmesser": "D", "x_stirnseitig": "eintauchen?", "x_fraeserwerkstoff": "aus Material",
+    default_cols = ["_code_str", "_name_and_description", "_price_str", "_uom_str", "_location_str", "_supplier_all_infos"]
     jobs = [  # ("Fräser", default_cols+["x_durchmesser", "x_stirnseitig", "x_fraeserwerkstoff", "x_fuerwerkstoff"]),
               ("CNC", default_cols),
               (228, default_cols),  # Fräsenmaterial
