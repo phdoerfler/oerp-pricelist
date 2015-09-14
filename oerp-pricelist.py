@@ -195,11 +195,11 @@ def _parse_product(p):
     p['_categ_str'] = " / ".join(p['_categ_list'])
     
     # _price_str: list price as string
-    price_str = '{:.3f}'.format(p['list_price'])
+    price_str = '{:.3f}'.format(p['lst_price'])
     if price_str[-1] == "0":  # third digit only if nonzero
         price_str = price_str[:-1]
     p['_price_str'] = u'{} €'.format(price_str)
-    if p['list_price'] == 0:
+    if p['lst_price'] == 0:
         p['_price_str'] = u"gegen Spende"
     if not p['sale_ok']:
         p['_price_str'] = u"unverkäuflich"
@@ -240,7 +240,7 @@ def import_products_oerp(data, extra_filters=None, columns=None):
         extra_filters = []
     columns = deepcopy(columns)
     if columns:
-        columns += ["name", "description", "code", "default_code", "list_price", "active", "sale_ok", "categ_id", "uom_id", "manufacturer",
+        columns += ["name", "description", "code", "default_code", "lst_price", "active", "sale_ok", "categ_id", "uom_id", "manufacturer",
                     "manufacturer_pname", "manufacturer_pref", "seller_ids", 'property_stock_location']
     print "OERP Import"
     prod_ids = oerp.search('product.product', [('default_code', '!=', False)] + extra_filters)
