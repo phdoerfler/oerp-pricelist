@@ -16,7 +16,7 @@ import codecs
 import cgi
 import time
 from repoze.lru import lru_cache
-LRU_CACHE_MAX_ENTRIES=327678
+LRU_CACHE_MAX_ENTRIES = 327678
 
 import natsort
 
@@ -45,9 +45,6 @@ def str_to_int(s, fallback=None):
         return int(s)
     except ValueError:
         return fallback
-
-
-
 
 
 @lru_cache(LRU_CACHE_MAX_ENTRIES)
@@ -124,6 +121,7 @@ def get_category_with_descendants(prod_id):
 def get_categories():
     return read_elements('product.category', [], ['parent_id', 'name', 'property_stock_location'])
 
+
 def get_category(cat_id):
     for c in get_categories():
         if c['id'] == cat_id:
@@ -169,7 +167,7 @@ def get_location_str_from_product(p):
         c = get_category(p['categ_id'][0])
         location = c['property_stock_location']
     if location:
-        location_id = location[0]        
+        location_id = location[0]
         location_string = location[1]
         location = oerp.read('stock.location', location_id) # TODO cache
         if location['code']:
@@ -186,14 +184,14 @@ def get_location_str_from_product(p):
 
 def _parse_product(p):
     """takes a product from oerp as a dictionary, re-formats values and adds calculated ones"""
-    
+
     # product code (article number, PLU)
     p['_code_str'] = "{:04d}".format(int(p['code']))
     # category as list ["A","B","foo"]
     p['_categ_list'] = categ_id_to_list_of_names(p['categ_id'][0])
     # _categ_str: category as one string "A / B / foo"
     p['_categ_str'] = " / ".join(p['_categ_list'])
-    
+
     # _price_str: list price as string
     price_str = '{:.3f}'.format(p['lst_price'])
     if price_str[-1] == "0":  # third digit only if nonzero
@@ -203,11 +201,11 @@ def _parse_product(p):
         p['_price_str'] = u"gegen Spende"
     if not p['sale_ok']:
         p['_price_str'] = u"unverkäuflich"
-    
+
     p['_name_and_description'] = p['name']
     if p['description']:
         p['_name_and_description'] += '\n' + p['description']
-    
+
     # _supplier_all_infos; supplier and manufacturer info
     p['_supplier_all_infos'] = ''
     try:
@@ -228,9 +226,10 @@ def _parse_product(p):
 
     p['_uom_str'] = p['uom_id'][1]
     p['uom_id'] = p['uom_id'][0]
-    
-    p['_location_str'] = get_location_str_from_product(p)    
+
+    p['_location_str'] = get_location_str_from_product(p)
     return p
+
 
 def import_products_oerp(data, extra_filters=None, columns=None):
     # TODO code vs default_code -> what's the difference?
@@ -262,7 +261,6 @@ def import_products_oerp(data, extra_filters=None, columns=None):
 
     # Only consider things with numerical PLUs in code field
     prods = filter(lambda p: str_to_int(p['code']) is not None, prods)
-
 
     for p in prods:
         if not p['active'] or not p['sale_ok']:
@@ -328,11 +326,19 @@ def make_price_list_html(base_category, columns, column_names):
 
 
 def main():
-    column_names = {"_code_str": "Nr.", "_name_and_description": "Bezeichnung", "_price_str": "Preis", "_uom_str": "Einheit",
-                    "_supplier_name_code": "Lieferant", "_supplier_all_infos": "Lieferant / Hersteller", "_location_str": "Ort"}
-    # examples for custom columns, added via an attribute set in ERP: "x_durchmesser": "D", "x_stirnseitig": "eintauchen?", "x_fraeserwerkstoff": "aus Material",
-    default_cols = ["_code_str", "_name_and_description", "_price_str", "_uom_str", "_location_str", "_supplier_all_infos"]
-    jobs = [  # ("Fräser", default_cols+["x_durchmesser", "x_stirnseitig", "x_fraeserwerkstoff", "x_fuerwerkstoff"]),
+    column_names = {"_code_str": "Nr.",
+                    "_name_and_description": "Bezeichnung",
+                    "_price_str": "Preis",
+                    "_uom_str": "Einheit",
+                    "_supplier_name_code": "Lieferant",
+                    "_supplier_all_infos": "Lieferant / Hersteller",
+                    "_location_str": "Ort"}
+    # examples for custom columns, added via an attribute set in ERP:
+    # "x_durchmesser": "D", "x_stirnseitig": "eintauchen?", "x_fraeserwerkstoff": "aus Material",
+    default_cols = ["_code_str", "_name_and_description", "_price_str",
+                    "_uom_str", "_location_str", "_supplier_all_infos"]
+    jobs = [  # ("Fräser", default_cols+["x_durchmesser", "x_stirnseitig",
+              # "x_fraeserwerkstoff", "x_fuerwerkstoff"]),
               ("CNC", default_cols),
               (228, default_cols),  # Fräsenmaterial
               ("Laser", default_cols),
