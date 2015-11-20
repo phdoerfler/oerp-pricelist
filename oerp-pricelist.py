@@ -340,7 +340,7 @@ def make_price_list_html(base_category, columns, column_names):
             content_table += u'''
                 <tr id="{categ_str}" class="newCateg">
                     <td colspan="{colspan}">
-                        <a href="#{categ_str}" title="Permalink">¶</a>
+                        <a id="permalink" href="#{categ_str}" title="Permalink">¶</a>
                         {categ_str}
                     </td>
                 </tr>
@@ -352,7 +352,7 @@ def make_price_list_html(base_category, columns, column_names):
             if w == '_code_str':
                 # add the permalink ¶
                 row.append(u'''
-                    <a href="#{default_code}" title="Permalink">¶</a>
+                    <a id="permalink" href="#{default_code}" title="Permalink">¶</a>
                     {default_code}
                 '''.format(
                     default_code=html_escape(p['default_code'])

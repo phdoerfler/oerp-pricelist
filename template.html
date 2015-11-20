@@ -6,9 +6,19 @@
 		<link rel="shortcut icon" href="https://fablab.fau.de/sites/fablab.fau.de/files/fablab_favicon_1.ico" type="image/x-icon">
 		<link type="text/css" rel="stylesheet" media="all" href="https://user.fablab.fau.de/~ev80uhys/web/faufablab-light.css">
 		<style>
+			tr {
+				transition: background 1s ease-in-out;
+			}
 			/* highlight current section (category or product) */
 			tr:target {
 				background: rgba(167,206,56,.75);
+			}
+			a#permalink {
+				opacity: 0;
+				transition: opacity .25s ease-in-out;
+			}
+			tr:hover a#permalink {
+				opacity: 1;
 			}
 		</style>
 	</head>
