@@ -33,10 +33,13 @@ if sys.stdout.encoding != "UTF-8":
 cfg = ConfigParser({})
 cfg.readfp(codecs.open('config.ini', 'r', 'utf8'))
 
-oerp = oerplib.OERP(server=cfg.get('openerp', 'server'), protocol='xmlrpc+ssl',
-                    database=cfg.get('openerp', 'database'), port=cfg.getint('openerp', 'port'),
+oerp = oerplib.OERP(server=cfg.get('openerp', 'server'),
+                    protocol='xmlrpc+ssl',
+                    database=cfg.get('openerp', 'database'),
+                    port=cfg.getint('openerp', 'port'),
                     version=cfg.get('openerp', 'version'))
-user = oerp.login(user=cfg.get('openerp', 'user'), passwd=cfg.get('openerp', 'password'))
+user = oerp.login(user=cfg.get('openerp', 'user'),
+                  passwd=cfg.get('openerp', 'password'))
 oerpContext = oerp.context
 
 
@@ -52,7 +55,8 @@ def categ_id_to_list_of_names(c_id):
     # TODO make this faster by once fetching the list of all categories
     categ = get_category(c_id)
 
-    if not categ['parent_id'] or categ['parent_id'][0] == cfg.getint('openerp', 'base_category_id'):
+    if not categ['parent_id'] or \
+            categ['parent_id'][0] == cfg.getint('openerp', 'base_category_id'):
         return [categ['name']]
     else:
         return categ_id_to_list_of_names(categ['parent_id'][0]) + [categ['name']]
@@ -159,6 +163,7 @@ def get_supplier_info_from_product(p):
             return i
     raise NotFound()
 
+
 def get_location_str_from_product(p):
     location = p['property_stock_location']
     if not location:
@@ -169,11 +174,12 @@ def get_location_str_from_product(p):
     if location:
         location_id = location[0]
         location_string = location[1]
-        location = oerp.read('stock.location', location_id) # TODO cache
+        location = oerp.read('stock.location', location_id)  # TODO cache
         if location['code']:
             location_string += u" ({})".format(location['code'])
 
-        for removePrefix in [u"tats\xe4chliche Lagerorte  / FAU FabLab / ", u"tats\xe4chliche Lagerorte  / "]:
+        for removePrefix in [u"tats\xe4chliche Lagerorte  / FAU FabLab / ",
+                             u"tats\xe4chliche Lagerorte  / "]:
             if location_string.startswith(removePrefix):
                 location_string = location_string[len(removePrefix):]
     else:
@@ -183,7 +189,10 @@ def get_location_str_from_product(p):
 
 
 def _parse_product(p):
-    """takes a product from oerp as a dictionary, re-formats values and adds calculated ones"""
+    """
+    takes a product from oerp as a dictionary,
+    re-formats values and adds calculated ones
+    """
 
     # product code (article number, PLU)
     p['_code_str'] = "{:04d}".format(int(p['code']))
@@ -213,7 +222,8 @@ def _parse_product(p):
         if p['_supplierinfo']['name']:
             p['_supplier_name'] = p['_supplierinfo']['name'][1]
             p['_supplier_code'] = p['_supplierinfo']['product_code'] or ''
-            p['_supplier_name_code'] = p['_supplier_name'] + ": " + p['_supplier_code']
+            p['_supplier_name_code'] = '{}: {}'.format(
+                p['_supplier_name'], p['_supplier_code'])
             p['_supplier_all_infos'] += p['_supplier_name_code']
     except NotFound:
         pass
@@ -239,8 +249,19 @@ def import_products_oerp(data, extra_filters=None, columns=None):
         extra_filters = []
     columns = deepcopy(columns)
     if columns:
-        columns += ["name", "description", "code", "default_code", "lst_price", "active", "sale_ok", "categ_id", "uom_id", "manufacturer",
-                    "manufacturer_pname", "manufacturer_pref", "seller_ids", 'property_stock_location']
+        columns += ["name",
+                    "description",
+                    "code", "default_code",
+                    "lst_price",
+                    "active",
+                    "sale_ok",
+                    "categ_id",
+                    "uom_id",
+                    "manufacturer",
+                    "manufacturer_pname",
+                    "manufacturer_pref",
+                    "seller_ids",
+                    "property_stock_location"]
     print "OERP Import"
     prod_ids = oerp.search('product.product', [('default_code', '!=', False)] + extra_filters)
     print "reading {} products from OERP, this may take some minutes...".format(len(prod_ids))
@@ -284,10 +305,9 @@ def tr(x, options=""):
 
 # fill the template file with data
 def make_html_from_template(heading, content):
-    filename = "template.html"
-    f = open(filename, "r")
-    out = f.read()
-    f.close()
+    with open("template.html", "r") as f:
+        out = f.read()
+        f.close()
     out = out.replace("$HEADING", heading)
     out = out.replace("$REFRESHDATE", time.strftime("%x %X", time.localtime()))
     out = out.replace("$CONTENTTABLE", content)
