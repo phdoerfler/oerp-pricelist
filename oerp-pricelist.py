@@ -295,15 +295,18 @@ def html_escape(x):
     return cgi.escape(x).encode('ascii', 'xmlcharrefreplace').replace("\n", "<br/>")
 
 
-def tr(x, options="", escape=True):
+def tr(x, tr_options="", td_options=None, escape=True):
     """
     creates a html table row (<tr>) out of the dict x.
-    If you want to provide html properties for tr, use options
+    If you want to provide html properties for tr, use tr_options
+    If you want to provide html properties for the tds, use td_options
     If escape==False, the values of x won't be html escaped
     """
-    out = u"<tr {}>".format(options)
+    out = u"<tr {}>".format(tr_options)
     for v in x:
-        out += u"<td>{}</td>".format(html_escape(v) if escape else v)
+        out += u"<td {}>{}</td>".format(
+            td_options[x.index(v)] if td_options else "",
+            html_escape(v) if escape else v)
     out += u"</tr>"
     return out
 
@@ -360,8 +363,11 @@ def make_price_list_html(base_category, columns, column_names):
             else:
                 # escape, as tr musn't escape because of the permalink <a>
                 row.append(html_escape(str(p.get(w, ""))))
+        td_props = [''] * len(columns)
+        td_props[0] = 'style="width:50px;"'
         content_table += tr(row,
-                            options='id="{}"'.format(p['default_code']),
+                            tr_options='id="{}"'.format(p['default_code']),
+                            td_options=td_props,
                             escape=False)
 
     heading = "Preisliste " + " / ".join(categ_id_to_list_of_names(base_category))
