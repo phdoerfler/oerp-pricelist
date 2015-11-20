@@ -295,10 +295,15 @@ def html_escape(x):
     return cgi.escape(x).encode('ascii', 'xmlcharrefreplace').replace("\n", "<br/>")
 
 
-def tr(x, options=""):
+def tr(x, options="", escape=True):
+    """
+    creates a html table row (<tr>) out of the dict x.
+    If you want to provide html properties for tr, use options
+    If escape==False, the values of x won't be html escaped
+    """
     out = u"<tr {}>".format(options)
     for v in x:
-        out += u"<td>{}</td>".format(html_escape(v))
+        out += u"<td>{}</td>".format(html_escape(v) if escape else v)
     out += u"</tr>"
     return out
 
@@ -330,15 +335,34 @@ def make_price_list_html(base_category, columns, column_names):
     current_category = None
     for p in product_list:
         if p['_categ_str'] != current_category:
+            # Make a heading for the new category the current product belongs
             current_category = p['_categ_str']
-            content_table += u'<tr class="newCateg">\n<td colspan="{}">{}</td>\n</tr>\n'.format(
-                len(columns),
-                html_escape(p["_categ_str"]))
+            content_table += u'''
+                <tr id="{categ_str}" class="newCateg">
+                    <td colspan="{colspan}">
+                        <a href="#{categ_str}" title="Permalink">¶</a>
+                        {categ_str}
+                    </td>
+                </tr>
+            '''.format(
+                categ_str=html_escape(p["_categ_str"]),
+                colspan=len(columns))
         row = []
         for w in columns:
-            value = str(p.get(w, ""))
-            row.append(value)
-        content_table += tr(row)
+            if w == '_code_str':
+                # add the permalink ¶
+                row.append(u'''
+                    <a href="#{default_code}" title="Permalink">¶</a>
+                    {default_code}
+                '''.format(
+                    default_code=html_escape(p['default_code'])
+                ))
+            else:
+                # escape, as tr musn't escape because of the permalink <a>
+                row.append(html_escape(str(p.get(w, ""))))
+        content_table += tr(row,
+                            options='id="{}"'.format(p['default_code']),
+                            escape=False)
 
     heading = "Preisliste " + " / ".join(categ_id_to_list_of_names(base_category))
     out = make_html_from_template(heading, content_table)
