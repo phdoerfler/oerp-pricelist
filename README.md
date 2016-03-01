@@ -7,9 +7,8 @@ setup
 -----
 
 ```sh
-# If you prefer apt packages:
+# apt packages are not required but recommended
 apt-get install python-repoze.lru python-natsort
-# Otherwise
 pip install --upgrade -r requirements.txt
 
 cp config.ini.example config.ini
