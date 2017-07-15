@@ -3,7 +3,9 @@
 	<head>
 		<meta charset="utf-8">
 		<title>Preisliste - FAU FabLab</title>
-		<link rel="shortcut icon" href="https://fablab.fau.de/sites/fablab.fau.de/files/fablab_favicon_1.ico" type="image/x-icon">
+    <link rel="icon" href="https://fablab.fau.de/wp-content/uploads/2017/02/cropped-fab_cube_whitebg_circle-1-32x32.png" sizes="32x32" />
+    <link rel="icon" href="https://fablab.fau.de/wp-content/uploads/2017/02/cropped-fab_cube_whitebg_circle-1-192x192.png" sizes="192x192" />
+    <link rel="apple-touch-icon-precomposed" href="https://fablab.fau.de/wp-content/uploads/2017/02/cropped-fab_cube_whitebg_circle-1-180x180.png" />
 		<link type="text/css" rel="stylesheet" media="all" href="https://user.fablab.fau.de/~ev80uhys/web/faufablab-light.css">
 		<style>
 			tr {
@@ -20,25 +22,32 @@
 			tr:hover a#permalink {
 				opacity: 1;
 			}
+
+      .header {
+        background: url(https://fablab.fau.de/wp-content/uploads/2017/02/cropped-fablab6-1-1024x614.jpg) no-repeat center center fixed;
+        -webkit-background-size: cover;
+        -moz-background-size: cover;
+        -o-background-size: cover;
+        background-size: cover;
+      }
+      .logo img {
+        height: 3em;
+      }
 		</style>
 	</head>
 	<body>
 		<div id="header" class="header">
 			<div id="logo" class="logo">
 				<a href="https://fablab.fau.de">
-					<img src="https://fablab.fau.de/sites/fablab.fau.de/files/acquia_marina_logo.png" alt="Startseite">
+					<img src="https://fablab.fau.de/wp-content/uploads/2017/02/cropped-fab_cube_whitebg_circle-1-1.png" alt="Startseite">
 				</a>
 			</div>
 			<div id="menu" class="menu">
 				<nav>
 					<a href="https://fablab.fau.de">zurück zur FAU FabLab Webseite</a>
 					<a href="index.html">Übersicht aller Preislisten</a>
-                                        <a href="https://fablab.fau.de/app">zur App</a>
 				</nav>
 			</div>
-		</div>
-
-		<div id="top" class="top">
 		</div>
 
 		<div id="content" class="content">
@@ -51,7 +60,6 @@
 		<div id="bottom" class="bottom">
 			<p>Diese Liste wurde automatisch erzeugt am $REFRESHDATE. Fehler sind nicht ausgeschlossen.</p>
 			<p>Erzeugt mit <a href="https://github.com/fau-fablab/oerp-pricelist">oerp-pricelist</a>.</p>
-                        <p>Alle Teile können auch in unserer <a href="https://fablab.fau.de/app">App</a> durchsucht werden.</p>
 		</div>
 	</body>
 </html>
