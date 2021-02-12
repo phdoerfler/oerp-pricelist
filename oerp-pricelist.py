@@ -19,7 +19,8 @@ from repoze.lru import lru_cache
 LRU_CACHE_MAX_ENTRIES = 327678
 
 import natsort
-
+import json
+import shutil
 
 # switching to german:
 locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
@@ -328,6 +329,7 @@ def make_price_list_html(base_category, columns, column_names):
     categories = get_category_with_descendants(base_category)
     print categories
     data = import_products_oerp({}, [('categ_id', 'in', categories)], columns)
+    jsondata = json.dumps(data);
 
     def make_header(x):
         return column_names.get(x, x)
@@ -372,7 +374,7 @@ def make_price_list_html(base_category, columns, column_names):
 
     heading = "Preisliste " + " / ".join(categ_id_to_list_of_names(base_category))
     out = make_html_from_template(heading, content_table)
-    return heading, out
+    return heading, out, jsondata
 
 
 def main():
@@ -400,7 +402,7 @@ def main():
     file_list = []
     for (cat, columns) in jobs:
         print cat
-        (title, price_list) = make_price_list_html(cat, columns, column_names)
+        (title, price_list, jsondata) = make_price_list_html(cat, columns, column_names)
         if type(cat) == int:
             cat = str(cat)
         filename = "price_list-{}.html".format(re.sub(r'[^0-9a-zA-Z]', '_', cat))
@@ -408,9 +410,14 @@ def main():
         f.write(price_list)
         file_list.append((filename, title))
         f.close()
+        f = open("output/" + filename + ".json", "w");
+        f.write(jsondata)
+        f.close()
 
+    shutil.copyfile("shop.html", "output/shop.html");
     f = open("output/index.html", "w")
     html_list = "<ul>"
+    file_list = [("shop.html", "<b>Preisrechner Alle Produkte</b>")] + file_list;
     for (filename, title) in file_list:
         html_list += '<li><a href="{}">{}</a></li>'.format(filename, html_escape(title))
     html_list += "</ul>"
