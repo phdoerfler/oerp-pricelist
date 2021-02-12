@@ -417,7 +417,7 @@ def main():
     shutil.copyfile("shop.html", "output/shop.html");
     f = open("output/index.html", "w")
     html_list = "<ul>"
-    file_list = [("shop.html", "<b>Preisrechner Alle Produkte</b>")] + file_list;
+    file_list = [("shop.html", "Preisrechner Alle Produkte")] + file_list;
     for (filename, title) in file_list:
         html_list += '<li><a href="{}">{}</a></li>'.format(filename, html_escape(title))
     html_list += "</ul>"
