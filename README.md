@@ -1,11 +1,22 @@
 oerp-pricelist
 ==============
 
-Export HTML pricelist from OERP
+Export a HTML pricelist from OERP
 
-prerequisites:
+setup
+-----
 
-```sudo pip install oerplib```
-```apt-get install python-repoze.lru python-natsort```
+```sh
+# apt packages are not required but recommended
+apt-get install python-repoze.lru python-natsort
+pip install --upgrade -r requirements.txt
 
-You can write your own login data to the config.ini
+cp config.ini.example config.ini
+```
+
+You can write your own login data to `config.ini`
+
+License
+-------
+
+[Unilicense](LICENSE)
