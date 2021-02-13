@@ -52,16 +52,16 @@ For more information, please refer to <http://unlicense.org>
         color: white;
         padding: 3px;
       }
-      tr:nth-child(even){
+      tr:nth-child(odd){
         background:#eee;
       }
-      tr:nth-child(odd){
-        background:white;
-      }
-      tr.inCart:nth-child(even) {
-        background:#76d576;
+      tr:nth-child(even){
+        background:#fcfcfc;
       }
       tr.inCart:nth-child(odd) {
+        background:#76d576;
+      }
+      tr.inCart:nth-child(even) {
         background:#b2f4b2;
       }
       h2 {
@@ -71,8 +71,7 @@ For more information, please refer to <http://unlicense.org>
         margin: auto;
       }
       td {
-        padding-bottom:1em;
-        padding-top:1em;
+        padding: 1em 0.2em;
       }
       .product_location, .product_details {
         font-size: 70%;
@@ -82,6 +81,9 @@ For more information, please refer to <http://unlicense.org>
       }
       div#loading{
         display:block; line-height:50em; background-color:lightgray;
+      }
+      #search{
+        line-height:2em; padding:.5em; margin-bottom:1em;
       }
     </style>
   </head>
@@ -141,7 +143,7 @@ For more information, please refer to <http://unlicense.org>
                         if (oerpProduct._supplier_all_infos != "") {
                             product.description += "\n Lieferant: " + oerpProduct._supplier_all_infos;
                         }
-                        products[oerpProduct.id] = product;
+                        products[oerpProduct.code] = product;
                     }
                     updateProducts();
                     document.getElementById("loading").remove();
@@ -263,9 +265,15 @@ For more information, please refer to <http://unlicense.org>
             const productsTBody = productsTable.createTBody();
             let sortedProductsList = Object.keys(products);
             sortedProductsList.sort(productSortOrder);
+            let productsShown = 0;
             for (const productKey of sortedProductsList) {
                 if (!productMatchesSearch(productKey, searchString)) {
                     continue;
+                }
+                productsShown++;
+                if (productsShown > 150 && searchString != "") {
+                    productsTBody.insertRow().insertCell().textContent = "zu viele Suchergebnisse.";
+                    break;
                 }
                 const product = products[productKey];
                 // console.log(`${productKey}: ${product}`);
@@ -273,7 +281,7 @@ For more information, please refer to <http://unlicense.org>
                 const row = productsTBody.insertRow();
                 // product infos
                 row.insertCell().textContent = product.category.join(" / ");
-                row.insertCell().textContent = "#" + productKey;
+                row.insertCell().textContent = productKey;
                 const details = row.insertCell();
                 const detailsName = document.createElement("p");
                 detailsName.textContent = product.name;
@@ -335,9 +343,7 @@ For more information, please refer to <http://unlicense.org>
         function searchChanged(event) {
             newSearchString = document.getElementById("search").value;
             document.getElementById("clearSearch").disabled = (newSearchString == "");
-            if (newSearchString.trim().length < 3) {
-                newSearchString = "";
-            }
+            newSearchString = newSearchString.trim();
             if (searchString != newSearchString) {
                 searchString = newSearchString;
                 updateProducts();
