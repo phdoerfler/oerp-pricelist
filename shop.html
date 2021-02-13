@@ -1,5 +1,8 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <meta charset="utf-8">
+
 <!--
 
 
@@ -31,8 +34,6 @@ For more information, please refer to <http://unlicense.org>
 
 
 -->
-  <head>
-    <meta charset="utf-8">
 
     <title>Preisrechner</title>
 
@@ -52,13 +53,35 @@ For more information, please refer to <http://unlicense.org>
         padding: 3px;
       }
       tr:nth-child(even){
-        background:lightgray;
+        background:#eee;
       }
       tr:nth-child(odd){
         background:white;
       }
+      tr.inCart:nth-child(even) {
+        background:#76d576;
+      }
+      tr.inCart:nth-child(odd) {
+        background:#b2f4b2;
+      }
       h2 {
         padding-top:2em;
+      }
+      td>p{
+        margin: auto;
+      }
+      td {
+        padding-bottom:1em;
+        padding-top:1em;
+      }
+      .product_location {
+        font-size: 70%;
+      }
+      .cartTotal {
+        font-weight: bold; font-size: 200%; background: white;
+      }
+      div#loading{
+        display:block; line-height:50em; background-color:lightgray;
       }
     </style>
   </head>
@@ -66,16 +89,21 @@ For more information, please refer to <http://unlicense.org>
   <body>
     <h1>Preisrechner</h1>
 
-    <p>Lege Produkte in den Warenkorb, um den Preis zu berechnen. Nutze die Suchfunktion (Strg-F) um Artikel zu finden. Neu laden, rückgängig, usw. löscht den Warenkorb!</p>
+    <p>Lege Produkte in den Warenkorb, um den Preis zu berechnen. Neu laden, rückgängig, usw. löscht den Warenkorb!</p>
     
     <p style="font-size:80%; color:gray;">Hinweis: Wir sind kein Onlineshop. Nicht alle Artikel sind vorrätig oder bestellbar. Diese Seite ist lediglich eine Rechenhilfe um vor Ort im Lab auszurechnen wieviel du zahlen musst.</p>
+    
+    <div id="loading"> Produkte werden geladen. Bitte warten.... </div>
+    
     
     <h2 id="cartAnchor">Warenkorb</h2>
     <table id="cart">
     <tr><td>ist leer</td></tr>
     </table>
     
+    
     <h2>Produkte</h2>
+    <input id="search" type="search" placeholder="Suche"><input type="button" id="clearSearch" value="Suche leeren">
     <table id="products">
     </table>
 
@@ -85,33 +113,35 @@ For more information, please refer to <http://unlicense.org>
             let obj = await (await fetch(url)).json();
             return obj;
         }
-        var products = {    "42": {"price": 412.12, "name": "Produkte werden geladen. Bitte warten...", "unit": "g", "category": ["Bitte", "warten", "..."]},
-                            "43": {"price": 0.1337, "name": "Produkte werden geladen. Bitte warten...", "unit": "kg", "category": ["Bitte warten", ". . ."]},
-                            "productId": {"price": 0.1337, "name": "name", "unit": "Stück", "category": ["top", "second", "third"]}
+        var products = {    "42": {"price": 412.12, "name": "Produkte werden geladen. Bitte warten...", "unit": "g", "category": ["Bitte", "warten", "..."], "location": "Schublade XY"},
+                            "43": {"price": 0.1337, "name": "Produkte werden geladen. Bitte warten...", "unit": "kg", "category": ["Bitte warten", ". . ."] , "location": "Schublade XY"},
+                            "productId": {"price": 0.1337, "name": "name", "unit": "Stück", "category": ["top", "second", "third"], "location": "Schublade XY"}
                             };
-        updateProducts();
+        var cart = []; // [{"id": productKey, "qty": quantity},  ...]
+        var searchString = "";
         
         function loadOERPProducts() {
             
             // dummy content:
             // d = {"0834": {"_price_str": "0.15\u202f\u20ac", "code": "0834", "lst_price": 0.15, "_supplier_name": "MEW", "uom_id": 1, "_location_str": "Elektrowerkstatt / Regal / Schublade S6 (S6)", "default_code": "0834", "property_stock_location": false, "id": 693, "description": false, "sale_ok": true, "categ_id": [195, "Alle Produkte / Mechanik / Beilagscheiben"], "_supplier_name_code": "MEW: 82.230.130", "_code_str": "0834", "_categ_list": ["Mechanik", "Beilagscheiben"], "manufacturer_pname": false, "_uom_str": "St\u00fcck", "_categ_str": "Mechanik / Beilagscheiben", "active": true, "manufacturer_pref": false, "manufacturer": false, "_supplier_all_infos": "MEW: 82.230.130", "name": "Karosseriescheibe\u00a0DIN\u00a09021\u00a0\u2010 13\u00a0\u2010\u00a0St. ", "_supplierinfo": {"pricelist_ids": [563], "name": [49, "MEW"], "product_uom": [1, "St\u00fcck"], "sequence": 1, "product_name": false, "company_id": [1, "FAU FabLab"], "qty": 0.0, "delay": 7, "min_qty": 0.0, "product_code": "82.230.130", "id": 578, "product_id": [693, "False"]}, "_name_and_description": "Karosseriescheibe\u00a0DIN\u00a09021\u00a0\u2010 13\u00a0\u2010\u00a0St. ", "_supplier_code": "82.230.130", "seller_ids": [578]}, "0836": {"_price_str": "0.18\u202f\u20ac", "code": "0836", "lst_price": 0.18, "_supplier_name": "Amazon (Sammellieferant f\u00fcr Auslagen/Vorkassebestellungen)", "uom_id": 1, "_location_str": "Elektrowerkstatt / Regal / Schublade S3 (S3)", "default_code": "0836", "property_stock_location": [121, "tats\u00e4chliche Lagerorte  / FAU FabLab / Elektrowerkstatt / Regal / Schublade S3"], "id": 3657, "description": false, "sale_ok": true, "categ_id": [32, "Alle Produkte / Elektronik / Geh\u00e4usebau"], "_supplier_name_code": "Amazon (Sammellieferant f\u00fcr Auslagen/Vorkassebestellungen): ", "_code_str": "0836", "_categ_list": ["Elektronik", "Geh\u00e4usebau"], "manufacturer_pname": false, "_uom_str": "St\u00fcck", "_categ_str": "Elektronik / Geh\u00e4usebau", "active": true, "manufacturer_pref": false, "manufacturer": false, "_supplier_all_infos": "Amazon (Sammellieferant f\u00fcr Auslagen/Vorkassebestellungen): ", "name": "Antirutsch Pads selbstklebend \u00d8 10 mm", "_supplierinfo": {"pricelist_ids": [1889], "name": [175, "Amazon (Sammellieferant f\u00fcr Auslagen/Vorkassebestellungen)"], "product_uom": [1, "St\u00fcck"], "sequence": 1, "product_name": "108 x Antirutsch Pads aus EPDM/Zellkautschuk | rund | \u00d8 10 mm | Schwarz | selbstklebend | Rutschhemmende Pads inTop-Qualit\u00e4t", "company_id": [1, "FAU FabLab"], "qty": 108.0, "delay": 1, "min_qty": 108.0, "product_code": false, "id": 2293, "product_id": [2495, "False"]}, "_name_and_description": "Antirutsch Pads selbstklebend \u00d8 10 mm", "_supplier_code": "", "seller_ids": [2293]}};
-            const url ="./price_list-Alle_Produkte.html.json";
+            const url ="price_list-Alle_Produkte.html.json";
             d = loadJson(url);
             d.then(function(d) {
                     products = {};
                     for (const prodKey in d) {
                         const prod = d[prodKey];
-                        console.log(prod);
-                        products[prod.id] = {"price": prod.lst_price, "name": prod._name_and_description, "unit": prod._uom_str, "category": prod._categ_list};
+                        // console.log(prod);
+                        products[prod.id] = {"price": prod.lst_price, "name": prod._name_and_description, "unit": prod._uom_str, "category": prod._categ_list, "location": prod._location_str};
                     }
                     updateProducts();
+                    document.getElementById("loading").remove();
                 }
             );
         }
-        // comment out to use dummy products.
-        loadOERPProducts();
         
-        var cart = [];
+        function formatPrice(price) {
+            return price.toFixed(2) + " €"
+        }
 
         function addToCart(productKey, quantity) {
             cart.push({"id": productKey, "qty": quantity});
@@ -138,7 +168,7 @@ For more information, please refer to <http://unlicense.org>
             total = 0;
             for (const entryId in cart) {
                 entry = cart[entryId];
-                console.log(`c ${entry}`);
+                // console.log(`c ${entry}`);
                 // add one product row
                 const row = cartTBody.insertRow();
                 const product = products[entry.id];
@@ -146,9 +176,9 @@ For more information, please refer to <http://unlicense.org>
                 row.insertCell().textContent = entry.qty;
                 row.insertCell().textContent = product.unit;
                 row.insertCell().textContent = " x ";
-                row.insertCell().textContent = product.price;
+                row.insertCell().textContent = formatPrice(product.price);
                 linePrice = entry.qty * product.price;
-                row.insertCell().textContent = " = " + linePrice;
+                row.insertCell().textContent = " = " + formatPrice(linePrice);
                 removeBtn = document.createElement("input");
                 removeBtn.type="submit";
                 removeBtn.value="entfernen";
@@ -163,8 +193,8 @@ For more information, please refer to <http://unlicense.org>
                 total += linePrice;
             }
             totalCell = cartTBody.insertRow().insertCell();
-            totalCell.textContent="Gesamt " + total.toFixed(2) + " €";
-            totalCell.style="font-weight: bold; font-size: 200%;"
+            totalCell.textContent="Gesamt " + formatPrice(total);
+            totalCell.className = "cartTotal";
         }
         
         function getCartQty(productKey) {
@@ -178,16 +208,17 @@ For more information, please refer to <http://unlicense.org>
             return qty;
         }
         
+        // Sorting order of products
         function productToSortString(productKey) {
             product = products[productKey];
             if (product.name.startsWith("Spende")) {
-                return "0000AAAAA Spende immer zuerst";
+                return "0 Spende immer zuerst";
             }
             if (product.name.startsWith("Kommentar")) {
-                return "1110AAAAA Kommentar immer als zweites";
+                return "1 Kommentar immer als zweites";
             }
             
-            return product.category.join(" / ") + product.name + productKey;
+            return product.category.join(" ") + " 000 " + product.name + productKey;
         }
         function productSortOrder(keyA, keyB) {
                 if (productToSortString(keyA) > productToSortString(keyB)) {
@@ -197,6 +228,25 @@ For more information, please refer to <http://unlicense.org>
                 };
         }
         
+        // Does the given product match the search string?
+        function productMatchesSearch(productKey, searchString) {
+            searchString = searchString.trim().toLowerCase();
+            if (searchString == "") {
+                // search not active
+                return true;
+            }
+            product = products[productKey];
+            for (searchWord of searchString.split(" ")) {
+                if (searchWord == "") {
+                    continue
+                }
+                if (!(product.category.join(" ").toLowerCase().includes(searchWord) || product.name.toLowerCase().includes(searchWord))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
         function updateProducts() {
             const productsTable = document.getElementById("products");
             clearElement(productsTable);
@@ -204,17 +254,26 @@ For more information, please refer to <http://unlicense.org>
             let sortedProductsList = Object.keys(products);
             sortedProductsList.sort(productSortOrder);
             for (const productKey of sortedProductsList) {
+                if (!productMatchesSearch(productKey, searchString)) {
+                    continue;
+                }
                 const product = products[productKey];
-                console.log(`${productKey}: ${product}`);
+                // console.log(`${productKey}: ${product}`);
                 // add one product row
                 const row = productsTBody.insertRow();
                 // product infos
                 row.insertCell().textContent = product.category.join(" / ");
                 row.insertCell().textContent = "#" + productKey;
-                const name = row.insertCell();
-                name.textContent=product.name;
+                const details = row.insertCell();
+                const detailsName = document.createElement("p");
+                detailsName.textContent = product.name;
+                const detailsLocation = document.createElement("p");
+                detailsLocation.className = "product_location";
+                detailsLocation.textContent = product.location;
+                details.append(detailsName);
+                details.append(detailsLocation);
                 const price = row.insertCell();
-                price.textContent = product.price + " € pro " + product.unit;
+                price.textContent = formatPrice(product.price) + " pro " + product.unit;
                 const addToCartCell = row.insertCell();
                 // "Add to cart"
                 const addToCartBtn = document.createElement("input");
@@ -222,13 +281,13 @@ For more information, please refer to <http://unlicense.org>
                 addToCartBtn.value="in den Warenkorb";
                 // x pieces in cart
                 inCartCell = row.insertCell();
-                inCartCell.textContent = getCartQty(productKey) + " " + product.unit + " im ";
-                linkToCart = document.createElement("a");
-                linkToCart.href="#cartAnchor";
-                linkToCart.textContent="Warenkorb"
-                inCartCell.append(linkToCart);
                 if (getCartQty(productKey) > 0) {
-                    inCartCell.style="background:green;";
+                    row.className = "inCart";
+                    inCartCell.textContent = getCartQty(productKey) + " " + product.unit + " im ";
+                    linkToCart = document.createElement("a");
+                    linkToCart.href="#cartAnchor";
+                    linkToCart.textContent="Warenkorb"
+                    inCartCell.append(linkToCart);
                 }
                 function addThisToCart(event) {
                     let qty = null;
@@ -250,8 +309,41 @@ For more information, please refer to <http://unlicense.org>
                 addToCartBtn.onclick = addThisToCart;
                 addToCartBtn.onkeydown = addThisToCart;
                 addToCartCell.append(addToCartBtn);
+                if (product.price == 0) {
+                    console.log("aaa");
+                    price.textContent = "gegen Spende";
+                    clearElement(addToCartCell);
+                    clearElement(inCartCell);
+                }
             }
         }
+        
+        // search box changed
+        function searchChanged(event) {
+            newSearchString = document.getElementById("search").value;
+            document.getElementById("clearSearch").enabled = (newSearchString == "");
+            if (newSearchString.length < 3) {
+                newSearchString = "";
+            }
+            if (searchString != newSearchString) {
+                searchString = newSearchString;
+                updateProducts();
+            }
+        }
+        
+        function startup() {
+            document.getElementById("search").value = "";
+            document.getElementById("search").oninput = searchChanged;
+            document.getElementById("clearSearch").onclick = function(event) { document.getElementById("search").value = ""; searchChanged(event); };
+            
+            // load the list of dummy products so one can develop even if the JSON file is not found
+            updateProducts();
+            
+            // load the real products
+            loadOERPProducts();
+        }
+        
+        startup();
     </script>
     
     Ende der Liste.
