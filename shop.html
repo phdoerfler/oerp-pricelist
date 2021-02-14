@@ -42,12 +42,6 @@ For more information, please refer to <http://unlicense.org>
         font-family: sans-serif;
       }
 
-      body {
-        max-width: 1000px;
-        min-width: 480px;
-        margin: 0 auto;
-      }
-
       .lastResult {
         color: white;
         padding: 3px;
@@ -67,6 +61,9 @@ For more information, please refer to <http://unlicense.org>
       h2 {
         padding-top:2em;
       }
+      div#categoriesBar > h2 {
+        padding-top: 0em;;
+      }
       td>p{
         margin: auto;
       }
@@ -85,29 +82,52 @@ For more information, please refer to <http://unlicense.org>
       #search{
         line-height:2em; padding:.5em; margin-bottom:1em;
       }
+      div#categoriesBar {
+        position:fixed;
+        width:20em;
+        z-index: 1;
+        top: 0;
+        left:0;
+        overflow-x: hidden;
+      }
+      div#main {
+        margin-left: 25em; /* leave space for category sidebar */
+        max-width: 60em;
+      }
     </style>
   </head>
 
   <body>
-    <h1>Preisrechner</h1>
+    <div id="main">
+        <h1>Preisrechner</h1>
 
-    <p>Lege Produkte in den Warenkorb, um den Preis zu berechnen. Neu laden, rückgängig, usw. löscht den Warenkorb!</p>
+        <p>Lege Produkte in den Warenkorb, um den Preis zu berechnen. Neu laden, rückgängig, usw. löscht den Warenkorb!</p>
+
+        <p style="font-size:80%; color:gray;">Hinweis: Wir sind kein Onlineshop. Nicht alle Artikel sind vorrätig oder bestellbar. Diese Seite ist lediglich eine Rechenhilfe um vor Ort im Lab auszurechnen wieviel du zahlen musst.</p>
+
+        <div id="loading"> Produkte werden geladen. Bitte warten.... </div>
+
+
+        <h2 id="cartAnchor">Warenkorb</h2>
+        <table id="cart">
+        <tr><td>ist leer</td></tr>
+        </table>
+        
+        <h2>Produkte</h2>
+        <input id="search" type="search" placeholder="Suchbegriff oder Artikelnummer" size="40"> <input type="button" id="clearSearch" value="Suche leeren">
+        <table id="products">
+        </table>
     
-    <p style="font-size:80%; color:gray;">Hinweis: Wir sind kein Onlineshop. Nicht alle Artikel sind vorrätig oder bestellbar. Diese Seite ist lediglich eine Rechenhilfe um vor Ort im Lab auszurechnen wieviel du zahlen musst.</p>
+        <p><a href="https://fablab.fau.de/impressum"> Impressum </a> | <a href="https://github.com/fau-fablab/oerp-pricelist/blob/master/shop.html">Source code on GitHub</a></p>
+    </div>
     
-    <div id="loading"> Produkte werden geladen. Bitte warten.... </div>
+    <div id="categoriesBar">
+        <h2>Kategorien</h2>
+        <ul id="categories">
+        </ul>
+    </div>
     
-    
-    <h2 id="cartAnchor">Warenkorb</h2>
-    <table id="cart">
-    <tr><td>ist leer</td></tr>
-    </table>
-    
-    
-    <h2>Produkte</h2>
-    <input id="search" type="search" placeholder="Suchbegriff oder Artikelnummer" size="40"> <input type="button" id="clearSearch" value="Suche leeren">
-    <table id="products">
-    </table>
+
 
     <script>
 
@@ -115,14 +135,23 @@ For more information, please refer to <http://unlicense.org>
             let obj = await (await fetch(url)).json();
             return obj;
         }
+        // =========
+        // Global (state) variables
+        // =========
         var products = {    "42": {"price": 412.12, "name": "Produkte werden geladen. Bitte warten...", "description": "Infotext",  "unit": "g", "category": ["Bitte", "warten", "..."], "location": "Schublade XY"},
                             "43": {"price": 0.1337, "name": "Produkte werden geladen. Bitte warten...",  "description": "Infotext", "unit": "kg", "category": ["Bitte warten", ". . ."] , "location": "Schublade XY"},
                             "productId": {"price": 0.1337, "name": "name",  "description": "Infotext", "unit": "Stück", "category": ["top", "second", "third"], "location": "Schublade XY"}
                             };
         var cart = []; // [{"id": productKey, "qty": quantity},  ...]
         var searchString = "";
-        
+        var selectedCategory = [];
         var OERPProducts = {}; // not needed globally, but helpful for debugging
+        // GUI-specific variables
+        var timerWhileUserIsTyping = null;
+        
+        // =========
+        // Functions
+        // =========
         
         // Load products from oerp-pricelist JSON output, convert that to the above "products" format
         function loadOERPProducts() {
@@ -146,6 +175,7 @@ For more information, please refer to <http://unlicense.org>
                         products[oerpProduct.code] = product;
                     }
                     updateProducts();
+                    updateCategories();
                     document.getElementById("loading").remove();
                 }
             );
@@ -155,9 +185,22 @@ For more information, please refer to <http://unlicense.org>
             return price.toFixed(2) + " €"
         }
 
+        // add to cart
         function addToCart(productKey, quantity) {
             cart.push({"id": productKey, "qty": quantity});
             cartChanged();
+        }
+        
+        // how many of a given product are in the cart?
+        function getCartQty(productKey) {
+            qty = 0;
+            for (const entryId in cart) {
+                entry = cart[entryId];
+                if (entry.id == productKey) {
+                    qty += entry.qty;
+                }
+            }
+            return qty;
         }
         
         function clearElement(el) {
@@ -169,9 +212,12 @@ For more information, please refer to <http://unlicense.org>
         
         function cartChanged() {
             updateCart();
-            updateProducts();
+            // also update the products list because it highlights which products are in the cart.
+            // Do not limit the maximum number of products, because the user could have clicked on "show all" before.
+            updateProducts(Infinity);
         }
         
+        // regenerate the cart view
         function updateCart() {
             const cartTable = document.getElementById("cart");
             clearElement(cartTable);
@@ -208,17 +254,7 @@ For more information, please refer to <http://unlicense.org>
             totalCell.textContent="Gesamt " + formatPrice(total);
             totalCell.className = "cartTotal";
         }
-        
-        function getCartQty(productKey) {
-            qty = 0;
-            for (const entryId in cart) {
-                entry = cart[entryId];
-                if (entry.id == productKey) {
-                    qty += entry.qty;
-                }
-            }
-            return qty;
-        }
+
         
         // Sorting order of products
         function productToSortString(productKey) {
@@ -229,9 +265,11 @@ For more information, please refer to <http://unlicense.org>
             if (product.name.startsWith("Kommentar")) {
                 return "1 Kommentar immer als zweites";
             }
-            
             return product.category.join(" ") + " 000 " + product.name + productKey;
         }
+            
+            
+        // compare() function for products
         function productSortOrder(keyA, keyB) {
                 if (productToSortString(keyA) > productToSortString(keyB)) {
                     return 1;
@@ -259,7 +297,10 @@ For more information, please refer to <http://unlicense.org>
             return true;
         }
         
-        function updateProducts() {
+        // regenerate products view
+        // parameter: limitNumber: only show the first N results to increase speed
+        function updateProducts(limitNumber = 100) {
+            console.log(searchString);
             const productsTable = document.getElementById("products");
             clearElement(productsTable);
             const productsTBody = productsTable.createTBody();
@@ -271,8 +312,15 @@ For more information, please refer to <http://unlicense.org>
                     continue;
                 }
                 productsShown++;
-                if (productsShown > 150 && searchString != "") {
-                    productsTBody.insertRow().insertCell().textContent = "zu viele Suchergebnisse.";
+                if (productsShown > limitNumber) {
+                    const notAllShown = productsTBody.insertRow().insertCell();
+                    notAllShown.textContent = "Es werden nur die ersten 50 Ergebnisse angezeigt."
+                    notAllShown.style = "background:white; font-weight:bold;";
+                    const showAll = document.createElement("input");
+                    showAll.type="button";
+                    showAll.value="mehr anzeigen";
+                    showAll.onclick = function(ev) {updateProducts(Infinity);}
+                    notAllShown.append(showAll);
                     break;
                 }
                 const product = products[productKey];
@@ -339,8 +387,65 @@ For more information, please refer to <http://unlicense.org>
             }
         }
         
+        // show the list of categories
+        function updateCategories() {
+            // build the list of categories that are currently shown
+            let categories = {}; // {"category sort string": ["category", "array", "from", "top", "to", "bottom"], ...}
+            for (p of Object.values(products)) {
+                // go through the category path of every product
+                for (let i = 0; i < p.category.length; i++) {
+                    category = p.category.slice(0, i+1);
+                    // only show a category if it is a top category or if it matches the currently selected category
+                    let showThisCategory = true;
+                    if (i == 0) {
+                        // always show root categories.
+                    } else if (i  > selectedCategory.length) {
+                        // do not show more than 1 level below the selected level
+                        showThisCategory = false;
+                    }
+                    if (showThisCategory) {
+                        categories[category.join(" Z ") + " 0"] = category;
+                    }
+                    if (selectedCategory.length >= i + 1 && p.category[i] != selectedCategory[i]) {
+                        // this category does not match the selected path
+                        break; // do not go further down
+                    }
+                }
+            }
+            const categoriesList = document.getElementById("categories");
+            clearElement(categoriesList);
+            for (const [catString, catAsList] of Object.entries(categories).sort()) {
+            
+                function clickedOnThisCategory(event) {
+                    selectedCategory = catAsList;
+                    updateCategories();
+                    document.getElementById("search").value = catAsList.join(" ");
+                    updateSearch();
+                }
+                const listItem = document.createElement("li");
+                categoriesList.append(listItem);
+                const listItemLink = document.createElement("a");
+                listItem.append(listItemLink);
+                listItemLink.href="javascript:;";
+                listItemLink.textContent = catAsList[catAsList.length - 1]
+                listItem.style="margin-left:" + 2 * (catAsList.length - 1) + "em;" // TODO: this is ugly, better create a nested list
+                listItemLink.onclick = clickedOnThisCategory;
+            }
+            // document.getElementById("search").value = cat.join(" ");
+        }
+        
         // search box changed
-        function searchChanged(event) {
+        // call updateSearch() some time after the user has stopped typing
+        function searchBoxChanged(event) {
+            if (timerWhileUserIsTyping != null) {
+                // cancel previous timers
+                clearTimeout(timerWhileUserIsTyping);
+            }
+            timerWhileUserIsTyping = setTimeout(updateSearch, 300);
+        }
+        
+        // update search immediately
+        function updateSearch(event=null) {
             newSearchString = document.getElementById("search").value;
             document.getElementById("clearSearch").disabled = (newSearchString == "");
             newSearchString = newSearchString.trim();
@@ -350,15 +455,23 @@ For more information, please refer to <http://unlicense.org>
             }
         }
         
+        function clearSearch(event = null) {
+            document.getElementById("search").value = "";
+            selectedCategory=[];
+            updateSearch();
+            updateCategories();
+        }
+        
         function startup() {
             document.getElementById("search").value = "";
-            document.getElementById("search").oninput = searchChanged;
-            document.getElementById("clearSearch").onclick = function(event) { document.getElementById("search").value = ""; searchChanged(event); };
+            document.getElementById("search").oninput = searchBoxChanged;
+            document.getElementById("clearSearch").onclick = clearSearch;
             
-            searchChanged(null);
+            updateSearch();
             
             // load the list of dummy products so one can develop even if the JSON file is not found
             updateProducts();
+            updateCategories();
             
             // load the real products
             loadOERPProducts();
@@ -366,9 +479,5 @@ For more information, please refer to <http://unlicense.org>
         
         startup();
     </script>
-    
-    Ende der Liste.
-    
-    <p><a href="https://fablab.fau.de/impressum"> Impressum </a> | <a href="https://github.com/fau-fablab/oerp-pricelist/blob/master/shop.html">Source code on GitHub</a></p>
   </body>
 </html>
