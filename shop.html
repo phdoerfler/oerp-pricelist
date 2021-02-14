@@ -286,10 +286,24 @@ For more information, please refer to <http://unlicense.org>
                 return true;
             }
             product = products[productKey];
+            // searching within category
+            // note: searchString is already lowercased
+            if (searchString.startsWith("kategorie: \"")) {
+                searchParts = searchString.split("\"");
+                chosenCategory = searchParts[1];
+                // strip away 'Kategorie: "..."' from search string
+                if (searchParts.length >= 2) {
+                    searchString = searchParts[2];
+                }
+                if (!product.category.join(" / ").toLowerCase().startsWith(chosenCategory)) {
+                    return false;
+                }
+            }
             for (searchWord of searchString.split(" ")) {
                 if (searchWord == "") {
                     continue
                 }
+                searchWord = searchWord.replace("\"", "");
                 if (!(product.category.join(" ").toLowerCase().includes(searchWord) || product.name.toLowerCase().includes(searchWord) || Number(productKey) == Number(searchString))) {
                     return false;
                 }
@@ -419,7 +433,7 @@ For more information, please refer to <http://unlicense.org>
                 function clickedOnThisCategory(event) {
                     selectedCategory = catAsList;
                     updateCategories();
-                    document.getElementById("search").value = catAsList.join(" ");
+                    document.getElementById("search").value = "Kategorie: \"" + catAsList.join(" / ") + "\" ";
                     updateSearch();
                 }
                 const listItem = document.createElement("li");
