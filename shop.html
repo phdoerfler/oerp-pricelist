@@ -74,7 +74,7 @@ For more information, please refer to <http://unlicense.org>
         font-size: 70%;
       }
       .cartTotal {
-        font-weight: bold; font-size: 200%; background: white;
+        font-weight: bold; font-size: 130%; background: white;
       }
       div#loading{
         display:block; line-height:50em; background-color:lightgray;
@@ -89,10 +89,16 @@ For more information, please refer to <http://unlicense.org>
         top: 0;
         left:0;
         overflow-x: hidden;
+        padding-top:1em;
+        padding-left:1em;
       }
       div#main {
         margin-left: 25em; /* leave space for category sidebar */
         max-width: 60em;
+      }
+      a {
+        text-decoration:none;
+        color:navy;
       }
     </style>
   </head>
@@ -106,22 +112,27 @@ For more information, please refer to <http://unlicense.org>
         <p style="font-size:80%; color:gray;">Hinweis: Wir sind kein Onlineshop. Nicht alle Artikel sind vorrätig oder bestellbar. Diese Seite ist lediglich eine Rechenhilfe um vor Ort im Lab auszurechnen wieviel du zahlen musst.</p>
 
         <div id="loading"> Produkte werden geladen. Bitte warten.... </div>
-
-
+        
+        <h2 id="productsAnchor">Produkte</h2>
+        <input id="search" type="search" placeholder="Suchbegriff oder Artikelnummer" size="40"> <input type="button" id="clearSearch" value="❌ Suche leeren">
+        <table id="products">
+        </table>
+    
+    
         <h2 id="cartAnchor">Warenkorb</h2>
         <table id="cart">
         <tr><td>ist leer</td></tr>
         </table>
         
-        <h2>Produkte</h2>
-        <input id="search" type="search" placeholder="Suchbegriff oder Artikelnummer" size="40"> <input type="button" id="clearSearch" value="Suche leeren">
-        <table id="products">
-        </table>
-    
         <p><a href="https://fablab.fau.de/impressum"> Impressum </a> | <a href="https://github.com/fau-fablab/oerp-pricelist/blob/master/shop.html">Source code on GitHub</a></p>
+        <p style="margin-bottom:99%"></p>
     </div>
     
     <div id="categoriesBar">
+        <input type="button" onClick="javascript:document.getElementById('productsAnchor').scrollIntoView()" value="🔎 Produkte">
+        <input type="button" onClick="javascript:document.getElementById('cartAnchor').scrollIntoView()" value="🛒 Warenkorb">
+        
+        
         <h2>Kategorien</h2>
         <ul id="categories">
         </ul>
@@ -230,16 +241,16 @@ For more information, please refer to <http://unlicense.org>
                 // add one product row
                 const row = cartTBody.insertRow();
                 const product = products[entry.id];
-                row.insertCell().textContent = product.name;
                 row.insertCell().textContent = entry.qty;
                 row.insertCell().textContent = product.unit;
+                row.insertCell().textContent = product.name;
                 row.insertCell().textContent = " x ";
                 row.insertCell().textContent = formatPrice(product.price);
                 linePrice = entry.qty * product.price;
                 row.insertCell().textContent = " = " + formatPrice(linePrice);
                 removeBtn = document.createElement("input");
                 removeBtn.type="submit";
-                removeBtn.value="entfernen";
+                removeBtn.value="❌";
                 removeBtn.onclick=removeThis;
                 function removeThis(event) {
                     // remove the current cart element
@@ -253,6 +264,7 @@ For more information, please refer to <http://unlicense.org>
             totalCell = cartTBody.insertRow().insertCell();
             totalCell.textContent="Gesamt " + formatPrice(total);
             totalCell.className = "cartTotal";
+            totalCell.colSpan = "4";
         }
 
         
@@ -362,7 +374,7 @@ For more information, please refer to <http://unlicense.org>
                 // "Add to cart"
                 const addToCartBtn = document.createElement("input");
                 addToCartBtn.type="submit";
-                addToCartBtn.value="in den Warenkorb";
+                addToCartBtn.value="🛒";
                 // x pieces in cart
                 inCartCell = row.insertCell();
                 if (getCartQty(productKey) > 0) {
@@ -428,20 +440,33 @@ For more information, please refer to <http://unlicense.org>
             }
             const categoriesList = document.getElementById("categories");
             clearElement(categoriesList);
+            categories["0"] = [];
             for (const [catString, catAsList] of Object.entries(categories).sort()) {
             
                 function clickedOnThisCategory(event) {
+                    // Event handler: User clicked on the category.
+                    // Rebuild the tree
                     selectedCategory = catAsList;
                     updateCategories();
-                    document.getElementById("search").value = "Kategorie: \"" + catAsList.join(" / ") + "\" ";
+                    // and update the product search
+                    let searchBarString = "Kategorie: \"" + catAsList.join(" / ") + "\" ";
+                    if (selectedCategory.length == 0) {
+                        searchBarString = "";
+                    }
+                    document.getElementById("search").value = searchBarString;
                     updateSearch();
+                    document.getElementById("productsAnchor").scrollIntoView();
                 }
                 const listItem = document.createElement("li");
                 categoriesList.append(listItem);
                 const listItemLink = document.createElement("a");
                 listItem.append(listItemLink);
                 listItemLink.href="javascript:;";
-                listItemLink.textContent = catAsList[catAsList.length - 1]
+                if (catAsList.length == 0) {
+                    listItemLink.textContent = "Alle Produkte";
+                } else {
+                    listItemLink.textContent = catAsList[catAsList.length - 1];
+                }
                 listItem.style="margin-left:" + 2 * (catAsList.length - 1) + "em;" // TODO: this is ugly, better create a nested list
                 listItemLink.onclick = clickedOnThisCategory;
             }
