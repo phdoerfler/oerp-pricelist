@@ -4,7 +4,7 @@ RUN apt update && \
         python2.7-minimal python-pip python-setuptools python-natsort python-repoze.lru \
         git language-pack-de rsync && \
     pip install oerplib
-RUN git clone https://github.com/fau-fablab/oerp-pricelist
+RUN git clone https://github.com/fau-fablab/oerp-pricelist /oerp-pricelist
 WORKDIR /oerp-pricelist
 RUN pip install --upgrade -r requirements.txt
 COPY config.ini config.ini
