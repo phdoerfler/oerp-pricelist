@@ -28,8 +28,7 @@ locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
 importlib.reload(sys).setdefaultencoding('UTF-8')  # somehow doesn't work
 
 if sys.stdout.encoding != "UTF-8":
-    print(sys.stdout.encoding)
-    print("please use a UTF-8 locale, e.g. LANG=en_US.UTF-8", file=sys.stderr)
+    print(f"This application requires the use of UTF-8. You are using {sys.stdout.encoding}. Please use a UTF-8 locale, e.g., LANG=en_US.UTF-8.")
     exit(1)
 
 cfg = ConfigParser({})
@@ -83,8 +82,7 @@ def get_ids(db, prod_filter):
 def read(db, prod_id, fields=None):
     if not fields:
         fields = []
-    assert type(
-        prod_id) == int, "read is only for one element. " \
+    assert isinstance(prod_id, int), "read is only for one element. " \
                          "See also: read_elements() for reading multiple elements with a filter"
     read_result = oerp.read(db, [prod_id], fields, context=oerpContext)
     if len(read_result) != 1:
@@ -325,7 +323,7 @@ def make_html_from_template(heading, content):
 
 
 def make_price_list_html(base_category, columns, column_names):
-    if type(base_category) != int:
+    if not isinstance(base_category, int):
         base_category = category_id_from_name(base_category)
     categories = get_category_with_descendants(base_category)
     print(categories)
@@ -404,7 +402,7 @@ def main():
     for (cat, columns) in jobs:
         print(cat)
         (title, price_list, jsondata) = make_price_list_html(cat, columns, column_names)
-        if type(cat) == int:
+        if isinstance(cat, int):
             cat = str(cat)
         filename = "price_list-{}.html".format(re.sub(r'[^0-9a-zA-Z]', '_', cat))
         f = open("output/" + filename, "w")
