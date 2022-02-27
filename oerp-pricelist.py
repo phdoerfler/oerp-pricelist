@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # (C) Max Gaukler, Julian Hammer 2014
@@ -11,11 +11,12 @@ import sys
 import re
 import oerplib
 import locale
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 import codecs
 import cgi
 import time
 from repoze.lru import lru_cache
+import importlib
 LRU_CACHE_MAX_ENTRIES = 327678
 
 import natsort
@@ -24,11 +25,11 @@ import shutil
 
 # switching to german:
 locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
-reload(sys).setdefaultencoding('UTF-8')  # somehow doesn't work
+importlib.reload(sys).setdefaultencoding('UTF-8')  # somehow doesn't work
 
 if sys.stdout.encoding != "UTF-8":
-    print sys.stdout.encoding
-    print >> sys.stderr, "please use a UTF-8 locale, e.g. LANG=en_US.UTF-8"
+    print(sys.stdout.encoding)
+    print("please use a UTF-8 locale, e.g. LANG=en_US.UTF-8", file=sys.stderr)
     exit(1)
 
 cfg = ConfigParser({})
@@ -177,10 +178,10 @@ def get_location_str_from_product(p):
         location_string = location[1]
         location = oerp.read('stock.location', location_id)  # TODO cache
         if location['code']:
-            location_string += u" ({})".format(location['code'])
+            location_string += " ({})".format(location['code'])
 
-        for removePrefix in [u"tats\xe4chliche Lagerorte  / FAU FabLab / ",
-                             u"tats\xe4chliche Lagerorte  / "]:
+        for removePrefix in ["tats\xe4chliche Lagerorte  / FAU FabLab / ",
+                             "tats\xe4chliche Lagerorte  / "]:
             if location_string.startswith(removePrefix):
                 location_string = location_string[len(removePrefix):]
     else:
@@ -206,11 +207,11 @@ def _parse_product(p):
     price_str = '{:.3f}'.format(p['lst_price'])
     if price_str[-1] == "0":  # third digit only if nonzero
         price_str = price_str[:-1]
-    p['_price_str'] = u'{} €'.format(price_str)
+    p['_price_str'] = '{} €'.format(price_str)
     if p['lst_price'] == 0:
-        p['_price_str'] = u"gegen Spende"
+        p['_price_str'] = "gegen Spende"
     if not p['sale_ok']:
-        p['_price_str'] = u"unverkäuflich"
+        p['_price_str'] = "unverkäuflich"
 
     p['_name_and_description'] = p['name']
     if p['description']:
@@ -263,9 +264,9 @@ def import_products_oerp(data, extra_filters=None, columns=None):
                     "manufacturer_pref",
                     "seller_ids",
                     "property_stock_location"]
-    print "OERP Import"
+    print("OERP Import")
     prod_ids = oerp.search('product.product', [('default_code', '!=', False)] + extra_filters)
-    print "reading {} products from OERP, this may take some minutes...".format(len(prod_ids))
+    print("reading {} products from OERP, this may take some minutes...".format(len(prod_ids)))
     prods = []
 
     def split_list(prod_list, chunk_size):
@@ -276,13 +277,13 @@ def import_products_oerp(data, extra_filters=None, columns=None):
     # read max. n products at once
     n = 100
     for prod_ids_slice in split_list(prod_ids, n):
-        print "."
+        print(".")
         prods += oerp.read('product.product', prod_ids_slice, query_columns,
                            context=oerp.context)
         time.sleep(2)
 
     # Only consider things with numerical PLUs in code field
-    prods = filter(lambda p: str_to_int(p['code']) is not None, prods)
+    prods = [p for p in prods if str_to_int(p['code']) is not None]
 
     for p in prods:
         if not p['active'] or not p['sale_ok']:
@@ -303,12 +304,12 @@ def tr(x, tr_options="", td_options=None, escape=True):
     If you want to provide html properties for the tds, use td_options
     If escape==False, the values of x won't be html escaped
     """
-    out = u"<tr {}>".format(tr_options)
+    out = "<tr {}>".format(tr_options)
     for v in x:
-        out += u"<td {}>{}</td>".format(
+        out += "<td {}>{}</td>".format(
             td_options[x.index(v)] if td_options else "",
             html_escape(v) if escape else v)
-    out += u"</tr>"
+    out += "</tr>"
     return out
 
 
@@ -327,7 +328,7 @@ def make_price_list_html(base_category, columns, column_names):
     if type(base_category) != int:
         base_category = category_id_from_name(base_category)
     categories = get_category_with_descendants(base_category)
-    print categories
+    print(categories)
     data = import_products_oerp({}, [('categ_id', 'in', categories)], columns)
     jsondata = json.dumps(data);
 
@@ -335,14 +336,14 @@ def make_price_list_html(base_category, columns, column_names):
         return column_names.get(x, x)
 
     content_table = tr([make_header(x) for x in columns], 'class="head"')
-    product_list = data.values()
+    product_list = list(data.values())
     product_list = natsort.natsorted(product_list, key=lambda x: [x['_categ_str'], x['name']])
     current_category = None
     for p in product_list:
         if p['_categ_str'] != current_category:
             # Make a heading for the new category the current product belongs
             current_category = p['_categ_str']
-            content_table += u'''
+            content_table += '''
                 <tr id="{categ_str}" class="newCateg">
                     <td colspan="{colspan}">
                         <a id="permalink" href="#{categ_str}" title="Permalink">¶</a>
@@ -356,7 +357,7 @@ def make_price_list_html(base_category, columns, column_names):
         for w in columns:
             if w == '_code_str':
                 # add the permalink ¶
-                row.append(u'''
+                row.append('''
                     <a id="permalink" href="#{default_code}" title="Permalink">¶</a>
                     {default_code}
                 '''.format(
@@ -401,7 +402,7 @@ def main():
 
     file_list = []
     for (cat, columns) in jobs:
-        print cat
+        print(cat)
         (title, price_list, jsondata) = make_price_list_html(cat, columns, column_names)
         if type(cat) == int:
             cat = str(cat)
