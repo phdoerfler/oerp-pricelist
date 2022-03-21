@@ -1,6 +1,6 @@
 # See https://hub.docker.com/r/frolvlad/alpine-python2/dockerfile
 FROM alpine:3.14
-RUN apk add --no-cache python2 git rsync && \
+RUN apk add --no-cache python2 && \
     python -m ensurepip && \
     rm -r /usr/lib/python*/ensurepip && \
     pip install --upgrade pip setuptools && \
