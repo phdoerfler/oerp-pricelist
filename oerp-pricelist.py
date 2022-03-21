@@ -16,11 +16,14 @@ import codecs
 import cgi
 import time
 from repoze.lru import lru_cache
-LRU_CACHE_MAX_ENTRIES = 327678
+# LRU_CACHE_MAX_ENTRIES = 327678
+LRU_CACHE_MAX_ENTRIES = None
 
 import natsort
 import json
 import shutil
+from tqdm import tqdm
+from profiling import Profiler
 
 # switching to german:
 locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
@@ -53,14 +56,15 @@ def str_to_int(s, fallback=None):
 
 @lru_cache(LRU_CACHE_MAX_ENTRIES)
 def categ_id_to_list_of_names(c_id):
-    # TODO make this faster by once fetching the list of all categories
-    categ = get_category(c_id)
+    with Profiler("categ_id_to_list_of_names"):
+        # TODO make this faster by once fetching the list of all categories
+        categ = get_category(c_id)
 
-    if not categ['parent_id'] or \
-            categ['parent_id'][0] == cfg.getint('openerp', 'base_category_id'):
-        return [categ['name']]
-    else:
-        return categ_id_to_list_of_names(categ['parent_id'][0]) + [categ['name']]
+        if not categ['parent_id'] or \
+                categ['parent_id'][0] == cfg.getint('openerp', 'base_category_id'):
+            return [categ['name']]
+        else:
+            return categ_id_to_list_of_names(categ['parent_id'][0]) + [categ['name']]
 
 
 class NotFound(Exception):
@@ -155,38 +159,45 @@ def get_supplier_info():
 
 
 def get_supplier_info_from_product(p):
-    # input: product data dict
-    # TODO only shows first supplier
-    if len(p['seller_ids']) == 0:
-        raise NotFound
-    for i in get_supplier_info():
-        if i['id'] == p['seller_ids'][0]:
-            return i
-    raise NotFound()
+    with Profiler("get_supplier_info_from_product"):
+        # input: product data dict
+        # TODO only shows first supplier
+        if len(p['seller_ids']) == 0:
+            raise NotFound
+        for i in get_supplier_info():
+            if i['id'] == p['seller_ids'][0]:
+                return i
+        raise NotFound()
+
+
+@lru_cache(LRU_CACHE_MAX_ENTRIES)
+def fetch_stock_location(location_id):
+    return oerp.read('stock.location', location_id)
 
 
 def get_location_str_from_product(p):
-    location = p['property_stock_location']
-    if not location:
-        # no location given for product
-        # fall back to category's location like OERP storage module does
-        c = get_category(p['categ_id'][0])
-        location = c['property_stock_location']
-    if location:
-        location_id = location[0]
-        location_string = location[1]
-        location = oerp.read('stock.location', location_id)  # TODO cache
-        if location['code']:
-            location_string += u" ({})".format(location['code'])
+    with Profiler("get_location_str_from_product"):
+        location = p['property_stock_location']
+        if not location:
+            # no location given for product
+            # fall back to category's location like OERP storage module does
+            c = get_category(p['categ_id'][0])
+            location = c['property_stock_location']
+        if location:
+            location_id = location[0]
+            location_string = location[1]
+            location = fetch_stock_location(location_id)
+            if location['code']:
+                location_string += u" ({})".format(location['code'])
 
-        for removePrefix in [u"tats\xe4chliche Lagerorte  / FAU FabLab / ",
-                             u"tats\xe4chliche Lagerorte  / "]:
-            if location_string.startswith(removePrefix):
-                location_string = location_string[len(removePrefix):]
-    else:
-        # no location set at all
-        location_string = "kein Ort eingetragen"
-    return location_string
+            for removePrefix in [u"tats\xe4chliche Lagerorte  / FAU FabLab / ",
+                                u"tats\xe4chliche Lagerorte  / "]:
+                if location_string.startswith(removePrefix):
+                    location_string = location_string[len(removePrefix):]
+        else:
+            # no location set at all
+            location_string = "kein Ort eingetragen"
+        return location_string
 
 
 def _parse_product(p):
@@ -242,7 +253,7 @@ def _parse_product(p):
     return p
 
 
-def import_products_oerp(data, extra_filters=None, columns=None):
+def import_products_oerp(cat_name, data, extra_filters=None, columns=None):
     # TODO code vs default_code -> what's the difference?
     if not columns:
         columns = []
@@ -263,9 +274,7 @@ def import_products_oerp(data, extra_filters=None, columns=None):
                     "manufacturer_pref",
                     "seller_ids",
                     "property_stock_location"]
-    print "OERP Import"
     prod_ids = oerp.search('product.product', [('default_code', '!=', False)] + extra_filters)
-    print "reading {} products from OERP, this may take some minutes...".format(len(prod_ids))
     prods = []
 
     def split_list(prod_list, chunk_size):
@@ -273,18 +282,17 @@ def import_products_oerp(data, extra_filters=None, columns=None):
 
     # columns starting with _ are generated in this script and not from the DB
     query_columns = [col for col in columns if not col.startswith("_")]
-    # read max. n products at once
-    n = 100
-    for prod_ids_slice in split_list(prod_ids, n):
-        print "."
-        prods += oerp.read('product.product', prod_ids_slice, query_columns,
-                           context=oerp.context)
-        time.sleep(2)
+    
+    chunk_size = 100
+    with tqdm(total=len(prod_ids), desc="Fetching products of category '{}'".format(cat_name), leave=False) as pbar:
+        for prod_ids_slice in split_list(prod_ids, chunk_size):
+            prods += oerp.read('product.product', prod_ids_slice, query_columns, context=oerp.context)
+            pbar.update(len(prod_ids_slice))
 
     # Only consider things with numerical PLUs in code field
     prods = filter(lambda p: str_to_int(p['code']) is not None, prods)
 
-    for p in prods:
+    for p in tqdm(prods, desc="Processing products of category '{}'".format(cat_name), leave=False):
         if not p['active'] or not p['sale_ok']:
             continue
         p = _parse_product(p)
@@ -324,11 +332,11 @@ def make_html_from_template(heading, content):
 
 
 def make_price_list_html(base_category, columns, column_names):
+    cat_name = base_category
     if type(base_category) != int:
         base_category = category_id_from_name(base_category)
     categories = get_category_with_descendants(base_category)
-    print categories
-    data = import_products_oerp({}, [('categ_id', 'in', categories)], columns)
+    data = import_products_oerp(cat_name, {}, [('categ_id', 'in', categories)], columns)
     jsondata = json.dumps(data);
 
     def make_header(x):
@@ -400,8 +408,7 @@ def main():
     ]
 
     file_list = []
-    for (cat, columns) in jobs:
-        print cat
+    for (cat, columns) in tqdm(jobs, desc="Exporting OERP to HTML"):
         (title, price_list, jsondata) = make_price_list_html(cat, columns, column_names)
         if type(cat) == int:
             cat = str(cat)
@@ -414,17 +421,18 @@ def main():
         f.write(jsondata)
         f.close()
 
-    shutil.copyfile("shop.html", "output/shop.html");
+    shutil.copyfile("shop.html", "output/shop.html")
     f = open("output/index.html", "w")
     html_list = "<ul>"
-    file_list = [("shop.html", "Preisrechner Alle Produkte")] + file_list;
+    file_list = [("shop.html", "Preisrechner Alle Produkte")] + file_list
     for (filename, title) in file_list:
         html_list += '<li><a href="{}">{}</a></li>'.format(filename, html_escape(title))
     html_list += "</ul>"
     html_list = make_html_from_template("Übersicht aller Preislisten", html_list)
     f.write(html_list)
     f.close()
-
+    # print("Execution stats:")
+    # print(Profiler.stats)
 
 if __name__ == '__main__':
     main()

@@ -2,3 +2,5 @@ oerplib
 natsort
 repoze.lru
 jinja2
+tqdm
+setuptools

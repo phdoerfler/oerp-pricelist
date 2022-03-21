@@ -1,8 +1,10 @@
-FROM ubuntu:18.04
-RUN apt update && \
-    apt -y --no-install-recommends install \
-        python2.7-minimal python-pip python-setuptools python-natsort python-repoze.lru \
-        git language-pack-de rsync && \
+# See https://hub.docker.com/r/frolvlad/alpine-python2/dockerfile
+FROM alpine:3.14
+RUN apk add --no-cache python2 git rsync && \
+    python -m ensurepip && \
+    rm -r /usr/lib/python*/ensurepip && \
+    pip install --upgrade pip setuptools && \
+    rm -r /root/.cache && \
     python2 -m pip install oerplib
 COPY . .
 RUN python2 -m pip install --upgrade -r requirements.txt
