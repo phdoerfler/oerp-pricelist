@@ -4,3 +4,4 @@ repoze.lru
 jinja2
 tqdm
 setuptools
+ratelimit
