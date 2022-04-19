@@ -31,7 +31,7 @@ No progress bars:
 docker-compose up --build
 ```
 
-By default, a rate limiting of one request per two seconds is used.
+By default, a rate limiting of one `search` request per two seconds is used.
 The settings are exposed as two environment variables.
 This example shows them set to 1000 requests every 2 seconds:
 
