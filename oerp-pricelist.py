@@ -57,28 +57,22 @@ print("Rate limiting OERP API calls to %s calls per %s seconds" % (oerp_rl_calls
 @limits(calls=oerp_rl_calls,
         period=oerp_rl_period)
 def oerp_api_call(function, *args, **kwargs):
-    if function == 'read':
-        return oerp.read(*args, **kwargs)
-    elif function == 'search':
+    if function == 'search':
         return oerp.search(*args, **kwargs)
-    elif function == 'write':
-        return oerp.write(*args, **kwargs)
-    elif function == 'create':
-        return oerp.create(*args, **kwargs)
     else:
         raise Exception("Unknown function '%s'" % function)
-
-def oerp_read(*args, **kwargs):
-    return oerp_api_call('read', *args, **kwargs)
 
 def oerp_search(*args, **kwargs):
     return oerp_api_call('search', *args, **kwargs)
 
+def oerp_read(*args, **kwargs):
+    return oerp.read(*args, **kwargs)
+
 def oerp_write(*args, **kwargs):
-    return oerp_api_call('write', *args, **kwargs)
+    return oerp.write(*args, **kwargs)
 
 def oerp_create(*args, **kwargs):
-    return oerp_api_call('create', *args, **kwargs)
+    return oerp.create(*args, **kwargs)
 
 
 def str_to_int(s, fallback=None):
