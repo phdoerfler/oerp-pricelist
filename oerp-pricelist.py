@@ -51,7 +51,7 @@ from ratelimit import limits, sleep_and_retry
 
 oerp_rl_calls  = float(os.getenv('OERP_RATE_LIMIT_CALLS',          '1'))
 oerp_rl_period = float(os.getenv('OERP_RATE_LIMIT_PERIOD_SECONDS', '2'))
-print("Rate limiting OERP API calls to %s calls per %s seconds" % (oerp_rl_calls, oerp_rl_period))
+print("Rate limiting OERP API search calls to %s calls per %s seconds" % (oerp_rl_calls, oerp_rl_period))
 
 @sleep_and_retry
 @limits(calls=oerp_rl_calls,
